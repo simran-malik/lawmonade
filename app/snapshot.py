@@ -47,14 +47,47 @@ def _path(matter_id) -> Path:
     return settings.snapshot_dir / str(matter_id) / "snapshot.json"
 
 
-def save(snap: dict) -> Path:
-    p = _path(snap["matter"]["id"])
+def _write(p: Path, snap: dict) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=p.parent, suffix=".tmp")
     with os.fdopen(fd, "w") as f:
         json.dump(snap, f, indent=1)
     os.replace(tmp, p)          # rename = never a half-written file
+
+
+def _stamp(fetched_at: str) -> str:
+    return re.sub(r"[^0-9T]", "", str(fetched_at or now_iso()))[:15]     # '20261002T170000'
+
+
+def save(snap: dict) -> Path:
+    """Save the latest copy (snapshot.json) AND a dated copy in snapshots/, keeping SNAPSHOT_KEEP of them.
+    The dated copies answer "what changed since I last looked" and "what did the attorney see when they approved"."""
+    p = _path(snap["matter"]["id"])
+    _write(p.parent / "snapshots" / f"{_stamp(snap.get('fetched_at'))}.json", snap)
+    _write(p, snap)
+    for old in versions(snap["matter"]["id"])[:-settings.snapshot_keep or None]:
+        old.unlink(missing_ok=True)
     return p
+
+
+def versions(matter_id) -> list[Path]:
+    """Dated copies of one case, oldest first."""
+    return sorted((settings.snapshot_dir / str(matter_id) / "snapshots").glob("*.json"))
+
+
+def load_version(matter_id, fetched_at: str) -> dict | None:
+    """The copy of the case as it was at `fetched_at` (e.g. the one an approval was made on)."""
+    p = settings.snapshot_dir / str(matter_id) / "snapshots" / f"{_stamp(fetched_at)}.json"
+    return json.loads(p.read_text()) if p.exists() else None
+
+
+def purge(matter_id) -> int:
+    """Retention: delete every saved copy of one case. Returns how many files were removed."""
+    import shutil
+    d = settings.snapshot_dir / str(matter_id)
+    n = sum(1 for _ in d.rglob("*.json")) if d.exists() else 0
+    shutil.rmtree(d, ignore_errors=True)
+    return n
 
 
 def load_saved(matter_id) -> dict | None:

@@ -54,6 +54,17 @@ else:
 check("Share link secret in .env", bool(settings.share_link_secret),
       'python3 -c "import secrets;print(secrets.token_urlsafe(32))" -> SHARE_LINK_SECRET')
 
+# Field mapping (config/fields.yaml) against the cases saved so far
+from app import snapshot  # noqa: E402
+from app.kpis import field_report  # noqa: E402
+for f in sorted(settings.snapshot_dir.glob("*/snapshot.json")):
+    snap = snapshot.load_saved(f.parent.name)
+    rep = field_report(snap)
+    missing = [k for k, v in rep["cards"].items() if not v]
+    check(f"Field mapping for case {snap['matter'].get('client') or f.parent.name}", not missing,
+          f"no Clio field found for {', '.join(missing)}. Add the firm's field name to config/fields.yaml. "
+          f"Fields on this case not used by any card: {', '.join(rep['unmapped_fields']) or 'none'}")
+
 if "--slack" in sys.argv:
     try:
         from app.integrations.slack import notify

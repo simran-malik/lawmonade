@@ -139,16 +139,10 @@ def case_header(s: dict):
 
 
 def money_row(s: dict):
-    from app import store
-    from app.kpis import apply_edits, apply_reviews, kpis, same
+    from app import brief
     mid = s["matter"]["id"]
-    ks = apply_edits(kpis(s, lien_breakdown(s)), store.card_edits(mid))
-    saved = store.card_reviews(mid)
-    ks = apply_reviews(ks, saved)
-    for k in ks:      # keep each card's review status in our DB (only writes when something changed)
-        r, rv = saved.get(k["key"]), k["review"]
-        if not r or r["status"] != rv["status"] or not same(r["value"], k["amount"]):
-            store.set_card_review(mid, k["key"], rv["status"], k["amount"], rv.get("by", ""))
+    # Same brief as the API; drawing it never writes to the DB (only the buttons below do)
+    ks = brief.build(s, lien_breakdown(s))["cards"]
 
     h, who = st.columns([3, 1])
     with h:
@@ -172,17 +166,18 @@ def review_buttons(mid, k: dict):
     from app import store
     key, status = k["key"], k["review"]["status"]
     who = ss.get("who", "").strip()
+    seen = (ss.snap or {}).get("fetched_at", "")     # which copy of the case the person looked at
     if status == "needs_review" and not k.get("edited"):
         a, b = st.columns(2)
         if a.button("✓ Looks good", key=f"ok_{key}", type="primary", use_container_width=True):
-            store.set_card_review(mid, key, "approved", k["amount"], who)
+            store.set_card_review(mid, key, "approved", k["amount"], who, snapshot=seen)
             st.rerun()
         if b.button("Something wrong?", key=f"bad_{key}", use_container_width=True):
             ss[f"fix_{key}"] = True
     elif status == "approved":
         a, b = st.columns(2)
         if a.button("Undo approval", key=f"unok_{key}", use_container_width=True):
-            store.set_card_review(mid, key, "needs_review", k["amount"], who)
+            store.set_card_review(mid, key, "needs_review", k["amount"], who, snapshot=seen)
             st.rerun()
         if b.button("Something wrong?", key=f"bad_{key}", use_container_width=True):
             ss[f"fix_{key}"] = True

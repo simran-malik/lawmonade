@@ -62,6 +62,8 @@ class Settings(BaseSettings):
     smtp_password: str = ""           # base of share links sent to providers
 
     data_dir: Path = ROOT / "data"
+    fields_file: Path = ROOT / "config" / "fields.yaml"   # Clio custom field names per money card (per firm)
+    snapshot_keep: int = 30                               # past copies of each case to keep (for "what changed")
 
 
 settings = Settings()

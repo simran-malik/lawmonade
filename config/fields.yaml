@@ -1,0 +1,10 @@
+# Which Clio custom field feeds each money card. Every firm names its fields differently:
+# onboarding a firm = list its field names here (first match with a value wins). No code change needed.
+# Check a case against this file:  bash run.sh check   (lists unmatched cards and the case's real field names)
+case_value: [Estimated Case Value, Case Value, Estimated Value, Settlement Value]
+value_why: [Case Value Rationale, Value Rationale, Valuation Notes]
+coverage: [Policy Limits, Coverage, Insurance Limits, Policy Limit]
+coverage_ok: [Policy Limits Confirmed, Limits Confirmed]
+liens: [Health Insurance or Lien Holder, Liens, Lien Holder, Lien Amount]
+specials: [Medical Specials To Date, Medical Specials, Medical Bills, Specials]
+incident: [Date of Incident, Incident Date, Date of Loss, Accident Date]

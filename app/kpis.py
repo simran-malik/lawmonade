@@ -11,7 +11,7 @@ Field names differ between firms, so we look for several common names (FIELD_NAM
 """
 import re
 
-FIELD_NAMES = {
+DEFAULT_FIELD_NAMES = {
     "case_value": ["Estimated Case Value", "Case Value", "Estimated Value", "Settlement Value"],
     "value_why": ["Case Value Rationale", "Value Rationale", "Valuation Notes"],
     "coverage": ["Policy Limits", "Coverage", "Insurance Limits", "Policy Limit"],
@@ -20,6 +20,21 @@ FIELD_NAMES = {
     "specials": ["Medical Specials To Date", "Medical Specials", "Medical Bills", "Specials"],
     "incident": ["Date of Incident", "Incident Date", "Date of Loss", "Accident Date"],
 }
+
+
+def load_field_names(path=None) -> dict:
+    """Field names per card from config/fields.yaml (FIELDS_FILE); built-in defaults fill any gap."""
+    from app.config import settings
+    path = path or settings.fields_file
+    try:
+        import yaml
+        data = yaml.safe_load(open(path)) or {}
+    except FileNotFoundError:
+        data = {}
+    return {k: [str(x) for x in (data.get(k) or v)] for k, v in DEFAULT_FIELD_NAMES.items()}
+
+
+FIELD_NAMES = load_field_names()
 # "$22,180.00", "$100k", "$1.2M", "$2 million". The suffix must end the word ("$5 Medicaid" is $5, not $5M).
 MONEY = re.compile(r"\$\s?(\d[\d,]*(?:\.\d+)?)(?:\s?(k|m|thousand|million)\b)?", re.I)
 SCALE = {"k": 1e3, "thousand": 1e3, "m": 1e6, "million": 1e6}
@@ -36,6 +51,17 @@ def field(snap: dict, key: str) -> tuple[object, str]:
         if v not in (None, ""):
             return v, k
     return None, ""
+
+
+def field_report(snap: dict) -> dict:
+    """Which field each card uses on this case, and the case's fields nobody maps (for bash run.sh check)."""
+    used, cards = set(), {}
+    for key in FIELD_NAMES:
+        _, name = field(snap, key)
+        cards[key] = name or None
+        used.add(name)
+    unused = sorted(k for k in snap.get("fields", {}) if k not in used)
+    return {"cards": cards, "unmapped_fields": unused}
 
 
 def clio_link(snap: dict, field_name: str) -> dict | None:
