@@ -1,0 +1,10 @@
+{"items": [
+ {"holder": "New York State Medicaid", "kind": "lien", "amount": 22180.0, "status": "asserted",
+  "quote": "New York State Medicaid lien, $22,180.00 asserted."},
+ {"holder": "Progressive no-fault", "kind": "paid_benefit", "amount": 50000.0, "status": "exhausted",
+  "quote": "Progressive no-fault: $50,000 basic economic loss exhausted, which under Insurance Law 5104(a) is not recoverable from the tortfeasor."},
+ {"holder": "Social Security Disability", "kind": "pending_claim", "amount": null, "status": "pending",
+  "quote": "Social Security Disability claim filed and pending."},
+ {"holder": "Defendants (CPLR 4545 collateral source)", "kind": "defense_offset", "amount": null, "status": "pleaded",
+  "quote": "Defendants pleaded CPLR 4545 collateral source."}
+]}

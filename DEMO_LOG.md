@@ -97,3 +97,6 @@ Limits of this count:
 | 11:02 | The email carries only a secure link, never case details | Less exposure if an email is forwarded or misdirected |
 | 11:10 | App name shown as **Law-monade**; demo firm is the fictional **Brightwater & Vance Injury Law** (`FIRM_NAME` in `.env`) | Clear branding; no real firm's name used |
 | 11:31 | Task links open the Tasks tab with a search hint, not the task | Clio opens a single task in edit mode; avoid accidental edits |
+| 13:00 | Money cards link to the exact Clio tab (Custom Fields, Activities) and say which field or filter to look for | Clio has no address for one field or for the Expense filter (checked in Clio) |
+| 13:00 | People can correct a money card; saved in our DB (card_edits + audit), Clio never changed; card shows "Edited", keeps the Clio number, warns if Clio changes later | Read-only rule; numbers in free text are sometimes wrong |
+| 13:15 | Lien card: AI sorts the lien field into lien / paid benefit / pending / defense offset; code checks each quote and amount against the Clio text, adds up only checked liens, and counts other Clio items with the same amount | Taking every $ amount would count the $50,000 exhausted no-fault as a lien; one small cached call per case; falls back to the plain reading if the AI is unavailable |

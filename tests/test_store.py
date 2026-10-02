@@ -33,3 +33,12 @@ def test_email_log(tmp_path, monkeypatch):
     assert store.emails_for(token) == []
     store.log("email_sent", token, {"to": "a@b.com", "intended": "a@b.com", "via": "gmail", "subject": "x"})
     assert store.emails_for(token)[0]["to"] == "a@b.com"
+
+
+def test_card_edits(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "db_path", tmp_path / "t.db")
+    store.save_card_edit("m1", "lien", 22000, "From lien letter", "Sam", 22180)
+    e = store.card_edits("m1")["lien"]
+    assert e["value"] == 22000 and e["clio_value"] == 22180 and e["edited_by"] == "Sam"
+    store.clear_card_edit("m1", "lien")
+    assert store.card_edits("m1") == {}

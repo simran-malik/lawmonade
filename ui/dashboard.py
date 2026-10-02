@@ -120,17 +120,60 @@ def case_header(s: dict):
 
 
 def money_row(s: dict):
-    from app.kpis import kpis
+    from app import store
+    from app.kpis import apply_edits, kpis
     st.markdown("### What it's worth, and what's behind it")
-    ks = kpis(s)
+    mid = s["matter"]["id"]
+    ks = apply_edits(kpis(s, lien_breakdown(s)), store.card_edits(mid))
     for col, k in zip(st.columns(len(ks)), ks):
         with col:
-            st.markdown(theme.card(k["label"], k["value"], k["sub"], k["source"], k["sure"], k["why"], k["warn"]),
-                        unsafe_allow_html=True)
+            st.markdown(theme.card(k["label"], k["value"], k["sub"], k["source"], k["sure"], k["why"], k["warn"],
+                                   k.get("link")), unsafe_allow_html=True)
             if k.get("items"):
                 with st.expander("See the items"):
-                    for line in k["items"]:
-                        st.markdown(f"- {line}")
+                    for it in k["items"]:
+                        st.markdown(f"- {it['text']}" + (f" · [Open in Clio ↗]({it['url']})" if it.get("url") else ""))
+            edit_card(mid, k)
+
+
+def lien_breakdown(s: dict) -> dict:
+    """AI lien breakdown, once per case version (the answer is also cached on disk, so reopening is free)."""
+    from app import liens
+    key = f"liens_{s['matter']['id']}_{s.get('fetched_at')}"
+    if key not in ss:
+        with st.spinner("Sorting the lien field (AI, then checked against Clio)…"):
+            ss[key] = liens.analyze(s)
+    return ss[key]
+
+
+def edit_card(mid, k: dict):
+    """Let a person correct a number. Saved in Law-monade's own database; Clio is never changed (read-only)."""
+    key, edited = k["key"], k.get("edited")
+    clio_text = k.get("clio_value_text", k["value"])
+    import inspect
+    pkw = {"key": f"pop_{key}"} if "key" in inspect.signature(st.popover).parameters else {}
+    with st.popover("Change this number" if not edited else "Edit or undo the change", use_container_width=True, **pkw):
+        st.markdown(f"**{k['label']}**  \nClio says: **{clio_text}**")
+        st.caption("Your change is saved in Law-monade only. Clio is not changed.")
+        with st.form(f"edit_{key}", border=False):
+            value = st.number_input("Correct amount ($)", min_value=0.0, step=100.0, format="%.2f",
+                                    value=float(k["amount"] or 0))
+            note = st.text_input("Why? (optional)", value=(edited or {}).get("note", ""),
+                                 placeholder="e.g. Adjuster confirmed $50,000 on the phone")
+            who = st.text_input("Your name (optional)", value=ss.get("who", ""))
+            if st.form_submit_button("Save", type="primary", use_container_width=True):
+                ss.who = who
+                store_edit(mid, k, value, note, who)
+                st.rerun()
+        if edited and st.button("Undo: use the Clio number", key=f"undo_{key}", use_container_width=True):
+            from app import store
+            store.clear_card_edit(mid, key, ss.get("who", ""))
+            st.rerun()
+
+
+def store_edit(mid, k: dict, value: float, note: str, who: str):
+    from app import store
+    store.save_card_edit(mid, k["key"], value, note.strip(), who.strip(), k.get("clio_amount", k["amount"]))
 
 
 def case_screen(s: dict):

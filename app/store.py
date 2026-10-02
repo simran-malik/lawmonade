@@ -4,6 +4,7 @@ Tables
   shares       provider share links: what the attorney chose to share, and when the link expires
   share_views  each time a share link is opened ("has anyone in their office opened it?")
   last_opened  when each user last opened each matter ("what changed since I last opened it?")
+  card_edits   a person's correction to a money card on the brief (Clio is never changed)
   audit        who did what, when (pattern taken from hack/app/store.py)
 
 Clio snapshots and AI digests are JSON files in data/matters/, not here.
@@ -32,6 +33,9 @@ def _db() -> sqlite3.Connection:
         CREATE TABLE IF NOT EXISTS share_views (token TEXT, viewed_at TEXT, user_agent TEXT);
         CREATE TABLE IF NOT EXISTS last_opened (
             user_id TEXT, matter_id TEXT, opened_at TEXT, PRIMARY KEY (user_id, matter_id));
+        CREATE TABLE IF NOT EXISTS card_edits (
+            matter_id TEXT, card_key TEXT, value REAL, note TEXT, edited_by TEXT, edited_at TEXT,
+            clio_value REAL, PRIMARY KEY (matter_id, card_key));
         CREATE TABLE IF NOT EXISTS audit (at TEXT, action TEXT, item_id TEXT, detail TEXT);
     """)
     return con
@@ -88,6 +92,32 @@ def shares_for_matter(matter_id: str) -> list[dict]:
 def record_view(token: str, user_agent: str = "") -> None:
     with _db() as con:
         con.execute("INSERT INTO share_views VALUES (?, ?, ?)", (token, now(), user_agent))
+
+
+# ---------- corrections to money cards ----------
+def save_card_edit(matter_id, card_key: str, value: float, note: str = "", edited_by: str = "",
+                   clio_value: float | None = None) -> None:
+    """Save (or replace) a correction. clio_value = what Clio said at the time, so we notice if Clio changes later.
+    Every save goes to the audit log too, so earlier values are never lost."""
+    with _db() as con:
+        con.execute("INSERT OR REPLACE INTO card_edits VALUES (?,?,?,?,?,?,?)",
+                    (str(matter_id), card_key, float(value), note, edited_by, now(), clio_value))
+        log("card_edited", f"{matter_id}:{card_key}",
+            {"value": value, "clio_value": clio_value, "note": note, "by": edited_by}, con)
+
+
+def clear_card_edit(matter_id, card_key: str, edited_by: str = "") -> None:
+    """Go back to the Clio number."""
+    with _db() as con:
+        con.execute("DELETE FROM card_edits WHERE matter_id = ? AND card_key = ?", (str(matter_id), card_key))
+        log("card_edit_removed", f"{matter_id}:{card_key}", {"by": edited_by}, con)
+
+
+def card_edits(matter_id) -> dict:
+    """{card key: {value, note, edited_by, edited_at, clio_value}} for one case."""
+    with _db() as con:
+        rows = con.execute("SELECT * FROM card_edits WHERE matter_id = ?", (str(matter_id),)).fetchall()
+    return {r["card_key"]: dict(r) for r in rows}
 
 
 # ---------- last opened ----------

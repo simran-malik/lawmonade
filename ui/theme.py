@@ -69,6 +69,9 @@ h1 {{ font-size: 2.3rem !important; }} h2 {{ font-size: 1.8rem !important; }} h3
 .lm-pill.exact {{ background: #ECFDF3; color: {GREEN}; border: 1px solid #ABEFC6; }}
 .lm-pill.calc {{ background: #EEF2F8; color: {NAVY}; border: 1px solid #C7D2E3; }}
 .lm-pill.check {{ background: #FFFAEB; color: {AMBER}; border: 1px solid #FEC84B; }}
+.lm-pill.ai {{ background: #F4F3FF; color: #5925DC; border: 1px solid #D9D6FE; }}
+.lm-pill.edited {{ background: #EFF8FF; color: #175CD3; border: 1px solid #B2DDFF; }}
+.lm-src a {{ color: {NAVY}; font-weight: 600; }}
 
 /* empty state */
 .lm-empty {{ text-align: center; padding: 2.5rem 1rem 1rem; }}
@@ -138,18 +141,23 @@ def top_bar(source: str | None):
 
 
 def pill(level: str, text: str) -> str:
-    """level: exact | calc | check"""
+    """level: exact | calc | check | ai | edited"""
     return f'<span class="lm-pill {level}">{esc(text)}</span>'
 
 
 def card(label: str, value: str, sub: str = "", source: str = "", sure: tuple[str, str] = ("exact", "From Clio"),
-         why: str = "", warn: bool = False) -> str:
-    """One number with where it came from and how sure we are. `why` = short reason when unsure."""
+         why: str = "", warn: bool = False, link: dict | None = None) -> str:
+    """One number with where it came from and how sure we are. `why` = short reason when unsure.
+    link = {"url", "place", "hint"}: opens the source in Clio; hint says what to look for there."""
+    open_ = ""
+    if link and link.get("url"):
+        open_ = (f'<br><a href="{esc(link["url"])}" target="_blank">Open {esc(link.get("place") or "")} in Clio ↗</a>'
+                 + (f' <span class="lm-hint">then look for {esc(link["hint"])}</span>' if link.get("hint") else ""))
     return (f'<div class="lm-card{" warn" if warn else ""}"><div class="lm-label">{esc(label)}</div>'
             f'<div class="lm-value">{esc(value)}</div>'
             + (f'<div class="lm-sub">{esc(sub)}</div>' if sub else "")
             + (f'<div class="lm-why">⚠ {esc(why)}</div>' if why else "")
-            + f'<div class="lm-src">{pill(*sure)}<b>Source:</b> {esc(source)}</div></div>')
+            + f'<div class="lm-src">{pill(*sure)}<b>Source:</b> {esc(source)}{open_}</div></div>')
 
 
 def empty_state(title: str, text: str):
