@@ -102,8 +102,10 @@ div[class*="st-key-lmcard_"] {{ border: 1px solid {LINE}; border-radius: 12px; p
 div[class*="st-key-lmcard_"] > div {{ flex-shrink: 0; }}   /* never squeeze the card text under the link */
 div[class*="st-key-lmcard_warn_"] {{ border-left: 5px solid {AMBER}; }}
 div[class*="st-key-lmcard_needs_review_"] {{ border: 2px solid {AMBER}; background: #FFFAEB; box-shadow: 0 0 0 4px #FEF0C7; }}
+div[class*="st-key-lmcard_reviewed_"] {{ border: 2px solid #ABEFC6; background: #F6FEF9; box-shadow: 0 0 0 4px #ECFDF3; }}
+div[class*="st-key-lmcard_reviewed_"] div[class*="st-key-srclink_"] button p {{ color: {GREEN} !important; font-weight: 700; }}
 .lm-card-in {{ display: flex; flex-direction: column; gap: 0.35rem; }}
-div[class*="st-key-srclink_"] {{ border-top: 1px dashed {LINE}; padding-top: 0.35rem; margin-top: 0.2rem; }}
+div[class*="st-key-srclink_"] {{ margin-top: 0.2rem; }}
 div[class*="st-key-srclink_"] button {{ background: none !important; width: auto; border: none !important; box-shadow: none !important;
     min-height: 0 !important; padding: 0.15rem 0 !important; color: #175CD3 !important; text-decoration: underline;
     text-underline-offset: 3px; font-weight: 600; justify-content: flex-start; }}
@@ -226,16 +228,20 @@ def review_badge(rv: dict) -> str:
     st_, text = rv["status"], rv["label"]
     if st_ == "needs_review":
         text = "⚠ " + text.upper()
-    elif st_ in ("approved", "corrected"):
-        text = ("✓ " if st_ == "approved" else "✎ ") + text + (f" by {rv['by']}" if rv.get("by") else "") \
-               + (f" · {nice_time(rv['at'])}" if rv.get("at") else "")
+    elif st_ in ("approved", "corrected"):     # who is on the link below; the badge says when
+        text = ("✓ Reviewed" if st_ == "approved" else "✎ Corrected") + (f" · {nice_time(rv['at'])}" if rv.get("at") else "")
     return f'<span class="lm-rev {st_}">{esc(text)}</span>'
 
 
 def card_class(k: dict) -> str:
-    """needs_review | warn | plain: picks the card's border (see the st-key-lmcard_* CSS)."""
-    rv = k.get("review") or {}
-    return "needs_review" if rv.get("status") == "needs_review" else ("warn" if k.get("warn") else "plain")
+    """needs_review (amber) | reviewed (green: a person approved or corrected it) | warn | plain.
+    Picks the card's frame (see the st-key-lmcard_* CSS)."""
+    status = (k.get("review") or {}).get("status")
+    if status == "needs_review":
+        return "needs_review"
+    if status in ("approved", "corrected"):
+        return "reviewed"
+    return "warn" if k.get("warn") else "plain"
 
 
 def card_body(k: dict) -> str:
@@ -264,9 +270,9 @@ def source_link_label(k: dict) -> str:
     if rv.get("status") == "needs_review":
         return "Review →"
     if rv.get("status") == "approved":
-        return f"✓ Reviewed by {who}" if who else "✓ Reviewed"
+        return f"✓ Last reviewed by {who}" if who else "✓ Last reviewed"
     if rv.get("status") == "corrected":
-        return f"✎ Corrected by {who}" if who else "✎ Corrected"
+        return f"✓ Last reviewed by {who} (corrected)" if who else "✓ Last reviewed (corrected)"
     return "Where does this come from?"
 
 

@@ -133,9 +133,9 @@ def review_text(card: dict) -> str:
     if st_ == "needs_review":
         return "Needs review"
     if st_ == "approved":
-        return f"Reviewed by {rv.get('by') or 'a team member'}"
+        return f"Last reviewed by {rv.get('by') or 'a team member'}"
     if st_ == "corrected":
-        return f"Corrected by {rv.get('by') or 'a team member'}"
+        return f"Last reviewed by {rv.get('by') or 'a team member'} (corrected)"
     return "Checked by code"
 
 
