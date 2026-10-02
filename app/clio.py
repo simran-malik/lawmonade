@@ -159,6 +159,9 @@ def load_steps(query: str, matter_id=None):
     def find():
         rows = _get_all("matters.json", {"query": query},
                         ["id,display_number,description,status,open_date,statute_of_limitations,"
+                         "matter_stage{name},practice_area{name},client{id,name,primary_phone_number,primary_email_address},"
+                         "responsible_attorney{id,name,email}",
+                         "id,display_number,description,status,open_date,statute_of_limitations,"
                          "matter_stage{name},practice_area{name},client{id,name}",
                          "id,display_number,description,status,open_date,statute_of_limitations"])
         if matter_id is not None:                      # a person already picked one of several matches
@@ -176,6 +179,11 @@ def load_steps(query: str, matter_id=None):
             "practice_area": _name(m.get("practice_area")), "open_date": m.get("open_date"),
             "sol_date": m.get("statute_of_limitations"), "client": _name(m.get("client")),
             "url": f"{base}/nc/#/matters/{m['id']}",
+            # for the daily digest: who gets it, and the client's phone for "text the client"
+            "client_phone": (m.get("client") or {}).get("primary_phone_number") or "",
+            "client_email": (m.get("client") or {}).get("primary_email_address") or "",
+            "attorney": {"name": _name(m.get("responsible_attorney")),
+                         "email": (m.get("responsible_attorney") or {}).get("email") or ""},
         }
         st["fields"] = {c.get("field_name", ""): c.get("value") for c in cf.get("custom_field_values", [])}
 
@@ -198,10 +206,11 @@ def load_steps(query: str, matter_id=None):
     def tasks_calendar_money():
         mid = st["matter"]["id"]
         st["tasks"] = [{"id": t["id"], "date": t.get("due_at"), "title": t.get("name", ""), "text": t.get("description", ""),
-                        "status": t.get("status", ""),
+                        "status": t.get("status", ""), "assignee": _name(t.get("assignee")),
                         "src": src(W, "Task", t["id"], f"Task · due {nice_date(t.get('due_at'))} · {t.get('name', '')}")}
                        for t in _get_all("tasks.json", {"matter_id": mid},
-                                         ["id,name,description,due_at,status,completed_at", "id,name,description,due_at,status"])]
+                                         ["id,name,description,due_at,status,completed_at,assignee{id,name}",
+                                          "id,name,description,due_at,status,completed_at", "id,name,description,due_at,status"])]
         st["calendar"] = [{"id": e["id"], "date": e.get("start_at"), "title": e.get("summary", ""), "text": e.get("description", ""),
                            "src": src(W, "Calendar", e["id"], f"Calendar · {nice_date(e.get('start_at'))} · {e.get('summary', '')}")}
                           for e in _get_all("calendar_entries.json", {"matter_id": mid},
@@ -227,7 +236,8 @@ def load_steps(query: str, matter_id=None):
         # Ask for the email in the same request (1 call instead of 1 per contact); if Clio rejects that
         # field list, fall back and fetch the missing emails a few at a time.
         rels = _get_all("relationships.json", {"matter_id": mid},
-                        ["id,description,contact{id,name,primary_email_address}", "id,description,contact{id,name}",
+                        ["id,description,contact{id,name,primary_email_address,primary_phone_number}",
+                         "id,description,contact{id,name,primary_email_address}", "id,description,contact{id,name}",
                          "id,description"])
         missing = [(r.get("contact") or {}).get("id") for r in rels
                    if (r.get("contact") or {}).get("id") and "primary_email_address" not in (r.get("contact") or {})]
@@ -237,7 +247,8 @@ def load_steps(query: str, matter_id=None):
         for r in rels:
             c = r.get("contact") or {}
             people.append({"id": r["id"], "contact_id": c.get("id"), "name": _name(c), "role": r.get("description", ""),
-                           "email": c.get("primary_email_address") or extra.get(c.get("id"), "")})
+                           "email": c.get("primary_email_address") or extra.get(c.get("id"), ""),
+                           "phone": c.get("primary_phone_number") or ""})
         st["contacts"] = people
 
     def assemble():

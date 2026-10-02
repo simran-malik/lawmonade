@@ -123,12 +123,20 @@ def pick_case(choices: list[dict]):
             st.rerun()
 
 
+def sol_chip(s: dict) -> str:
+    """Clio sometimes returns a reference object for the SOL, not a date: then use the SOL task/calendar entry."""
+    from app import deadlines
+    from app.share import firm_now
+    sol = deadlines.sol(s, firm_now().date())
+    return sol["nice"] if sol else ""
+
+
 def case_header(s: dict):
     m, f = s["matter"], s.get("fields", {})
     chips = [("Stage", m.get("stage")), ("Status", m.get("status")),
              ("Incident", snapshot.nice_date(f.get("Date of Incident"))),
              ("Opened", snapshot.nice_date(m.get("open_date"))),
-             ("Statute of limitations", snapshot.nice_date(m.get("sol_date")))]
+             ("Statute of limitations", sol_chip(s))]
     chip_html = "".join(f'<span class="lm-chip">{esc(k)}: <b>{esc(v)}</b></span>' for k, v in chips if v)
     where = "Clio" if s["source"] == "clio" else "the sample file"
     st.markdown(f'<div class="lm-case"><h1>{esc(m.get("client") or m.get("description"))}</h1>'
@@ -142,7 +150,7 @@ def case_header(s: dict):
 def money_row(s: dict):
     from app import brief
     mid = s["matter"]["id"]
-    # Same brief as the API; drawing it never writes to the DB (only the buttons below do)
+    # Same brief as the API and the daily digest; drawing it never writes to the DB (only the buttons do)
     ks = brief.build(s, lien_breakdown(s))["cards"]
 
     h, who = st.columns([3, 1])
@@ -153,24 +161,55 @@ def money_row(s: dict):
     st.markdown(theme.review_summary(ks), unsafe_allow_html=True)
     for col, k in zip(st.columns(len(ks)), ks):
         with col:
-            st.markdown(theme.card(k), unsafe_allow_html=True)
-            needs = k["review"]["status"] == "needs_review"
-            with st.expander("Where this comes from" + (" · review" if needs else "")):
-                st.markdown(theme.source_html(k), unsafe_allow_html=True)
-                for it in k.get("items") or []:
-                    st.markdown(f"- {it['text']}" + (f" · [Open in Clio ↗]({it['url']})" if it.get("url") else ""))
-                review_buttons(mid, k)
+            # The card's frame is this container, so the blue link sits INSIDE the card
+            with st.container(key=f"lmcard_{theme.card_class(k)}_{k['key']}"):
+                st.markdown(theme.card_body(k), unsafe_allow_html=True)
+                if st.button(theme.source_link_label(k), key=f"srclink_{k['key']}", type="tertiary",
+                             help="Where this number comes from, and review it"):
+                    source_dialog(mid, k)
+
+
+def reviewer() -> str:
+    """The name saved with an approval: "Reviewing as" on the page, or the name typed in the pop-up."""
+    return (ss.get("who") or ss.get("who_dlg") or "").strip()
+
+
+@st.dialog("Where this number comes from", width="large")
+def source_dialog(mid, k: dict):
+    """Pop-up with everything behind one card (it doesn't fit inside the card) and the review buttons."""
+    st.markdown(f'<div class="lm-label">{esc(k["label"])}</div><div class="lm-value">{esc(k["value"])}</div>',
+                unsafe_allow_html=True)
+    rv = k.get("review") or {}
+    if rv.get("label"):
+        st.markdown(theme.review_badge(rv), unsafe_allow_html=True)
+    if k.get("why"):
+        st.markdown(f'<div class="lm-why">⚠ {theme.bold_money(k["why"])}</div>', unsafe_allow_html=True)
+    st.markdown(theme.source_html(k), unsafe_allow_html=True)
+    if k.get("groups"):
+        st.markdown(theme.groups_html(k["groups"]), unsafe_allow_html=True)
+    items = k.get("items") or []
+    if items:
+        st.markdown(f"**What it's based on** ({len(items)})")
+        with st.container(height=min(320, 46 * len(items) + 20)):
+            for it in items:
+                st.markdown(f"- {it['text']}" + (f" · [Open in Clio ↗]({it['url']})" if it.get("url") else ""))
+    st.divider()
+    review_buttons(mid, k)
 
 
 def review_buttons(mid, k: dict):
-    """Looks good / Something wrong? (and undo). Saved in Law-monade's own database; Clio is never changed."""
+    """Looks good / Something wrong? (and undo). Saved in Law-monade's own database; Clio is never changed.
+    A review needs a name: it is shown on the card ("Reviewed by Sam") and kept in the audit log."""
     from app import store
     key, status = k["key"], k["review"]["status"]
-    who = ss.get("who", "").strip()
+    if not reviewer() and status in ("needs_review", "approved") and not k.get("edited"):
+        st.text_input("Your name (saved with your review)", key="who_dlg", placeholder="e.g. Sam Lee")
+    who = reviewer()
     seen = (ss.snap or {}).get("fetched_at", "")     # which copy of the case the person looked at
     if status == "needs_review" and not k.get("edited"):
         a, b = st.columns(2)
-        if a.button("✓ Looks good", key=f"ok_{key}", type="primary", use_container_width=True):
+        if a.button("✓ Looks good", key=f"ok_{key}", type="primary", use_container_width=True, disabled=not who,
+                    help=None if who else "Type your name first"):
             store.set_card_review(mid, key, "approved", k["amount"], who, snapshot=seen)
             st.rerun()
         if b.button("Something wrong?", key=f"bad_{key}", use_container_width=True):
@@ -246,6 +285,8 @@ def case_screen(s: dict):
 
     brief, timeline, share = st.tabs(["Case brief", "Everything, by date", "Share with a provider"])
     with brief:
+        from ui import digest_panel
+        digest_panel.render(s, lien_breakdown(s))
         money_row(s)
         c = snapshot.counts(s)
         st.caption(f"Read from {c['notes']} notes · {c['communications']} emails and calls · {c['tasks']} tasks · "

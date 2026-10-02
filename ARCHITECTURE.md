@@ -91,6 +91,39 @@ Each component can be swapped, can be tested on its own, and is configured from 
 | `grounding.py` | AI quote + page words → verified / needs_review / hallucination | — | `--ocr-threshold` | `test_smoke` |
 | `ui/` | dashboard (firm, :8501) and provider portal (:8502, approved shares only) | any front end (calls `brief.build`) | `--port` | manual |
 | `main.py` + n8n | HTTP → app functions; schedules → Slack | cron | `SLACK_WEBHOOK_URL` (env only) | `/health` |
+| `digest.py` + `deadlines.py` + `summary.py` | case → daily email (+ Slack if urgent), once per case per day | APScheduler / a job queue; SendGrid | `DIGEST_*`, `FIRM_EMAIL_DOMAINS` | `test_digest` |
+
+## Daily digest
+
+One email per case every weekday morning, and a Slack ping **only** when something is urgent. The n8n schedule
+(`n8n/daily_digest.json`, 6:55 AM firm time, Mon-Fri) and the **Send digest now** button on the Case brief tab call the
+same function, `app/digest.py: run()`.
+
+```mermaid
+flowchart LR
+  CRON["n8n schedule<br/>weekdays 6:55 firm time"] -->|"GET /digest/matters<br/>POST /matters/id/digest/run"| RUN
+  BTN["Case brief tab<br/>Send digest now"] -->|"the copy on screen"| RUN
+  RUN["digest.run()<br/>claim run_key (SQLite)"] --> LOAD["fresh Clio read<br/>else saved copy + age"]
+  LOAD --> B["brief.build()<br/>same numbers as the tab"]
+  LOAD --> D["deadlines.py<br/>firm time zone"]
+  LOAD --> S["summary.py<br/>AI sentences, each checked"]
+  LOAD --> C["what changed<br/>vs. last digest's snapshot"]
+  B & D & S & C --> R["render: email (always)<br/>Slack (urgent only, counts only)"]
+  R --> OUT["digest_runs row + audit"]
+```
+
+| Part | What it does | Edge cases handled |
+|---|---|---|
+| `digest_runs` (SQLite) | One row per case per firm day (scheduled) or per click (manual); status per channel | Unique `run_key` + `BEGIN IMMEDIATE`: an n8n retry or a double click never sends twice. A failed run resumes and redoes only the channel that didn't go out. A crashed run is taken over after 10 min. |
+| `deadlines.py` | Overdue / long overdue (>90 days) / due today-tomorrow / next 14 days / no due date; SOL | Firm-time-zone days (UTC evening is still "today" in LA); only open tasks; past events never "overdue"; cancelled entries skipped; Clio's SOL reference object isn't treated as a date |
+| Contact to text | For each overdue task: the contact it names, else the client, else the assigned staff member; `sms:` link with an editable draft | A person sends it (nothing auto-texted); no amounts in drafts; "no phone in Clio" shown instead of a dead link |
+| `summary.py` (option C) | Facts line by code + 3-5 AI sentences from Clio fields, notes, emails, open tasks | Each sentence must quote its source word for word and may not add a number, date or month that isn't in the quote; otherwise dropped. Nothing passes / AI down / slow -> Clio's own case-summary words. Cached by input, so an unchanged case costs $0. |
+| Recipients | Responsible attorney in Clio, else `DIGEST_RECIPIENTS` | Addresses outside `FIRM_EMAIL_DOMAINS` dropped; none left -> recorded as `no_recipients` + Slack ops warning |
+| Stale data | Clio down -> newest saved copy with a red "data is N h old" banner | Older than `DIGEST_MAX_AGE_H` (48 h): sends "digest unavailable" instead of old numbers |
+| Sends | Email via `emailer.py`, Slack via webhook | Timeout / 500 = "maybe sent": recorded as `unknown`, never auto-resent. Closed cases skipped by the schedule. Manual re-send within 2 min asks first. |
+
+API: `GET /digest/matters`, `POST /matters/{id}/digest/run` (`{"trigger","actor","dry_run","force","email_only"}`,
+optional `X-Api-Key` = `DIGEST_API_KEY`), `GET /matters/{id}/digest/runs`. CLI: `bash run.sh digest [--matter ID] [--send]`.
 
 ## Reliability
 

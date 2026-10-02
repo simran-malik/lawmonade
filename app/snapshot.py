@@ -3,9 +3,10 @@ The screens only read this shape, so they never care where the data came from.
 
 snapshot = {
   "source": "clio" | "sample",  "fetched_at": ISO time,
-  "matter":  {id, number, description, status, stage, practice_area, open_date, sol_date, client, url},
+  "matter":  {id, number, description, status, stage, practice_area, open_date, sol_date, client, url,
+              client_phone, client_email, attorney: {name, email}},   (newer snapshots; older ones may lack these)
   "fields":  {custom field name: value},
-  "contacts": [{id, name, role, email}],
+  "contacts": [{id, name, role, email, phone}],
   "notes" | "communications" | "tasks" | "calendar" | "expenses" | "documents": [item, ...]
 }
 Every item has "src": {"where": "Clio" | "Sample file", "kind": "Note", "id": ..., "label": "Note · May 7, 2023 · Intake summary"}
@@ -132,12 +133,15 @@ def from_sample_file(path: str | Path) -> dict:
     d = json.loads(Path(path).read_text())
     W = "Sample file"
     m = d["matter"]["body"]
-    names, emails = {}, {}
+    names, emails, phones = {}, {}, {}
     for c in d["contacts"]["items"]:
         b = c["body"]
         names[c["ref"]] = (b.get("name") or " ".join(x for x in (b.get("first_name"), b.get("last_name")) if x))
         em = b.get("email_addresses") or []
         emails[c["ref"]] = next((e["address"] for e in em if e.get("default_email")), em[0]["address"] if em else "")
+        ph = b.get("phone_numbers") or []
+        phones[c["ref"]] = next((p.get("number", "") for p in ph if p.get("default_number")),
+                                ph[0].get("number", "") if ph else "")
     client_ref = _ph(m.get("client", {}).get("id"))[1]
 
     snap = {
@@ -147,6 +151,8 @@ def from_sample_file(path: str | Path) -> dict:
             "status": m.get("status", ""), "stage": _ph(m.get("matter_stage", {}).get("id"))[1],
             "practice_area": "Personal Injury", "open_date": m.get("open_date"),
             "sol_date": m.get("statute_of_limitations"), "client": names.get(client_ref, ""), "url": "",
+            "client_phone": phones.get(client_ref, ""), "client_email": emails.get(client_ref, ""),
+            "attorney": {"name": "", "email": ""},
         },
         "fields": {_ph(v["custom_field"]["id"])[1]: v.get("value") for v in m.get("custom_field_values", [])},
         "contacts": [], "notes": [], "communications": [], "tasks": [], "calendar": [], "expenses": [], "documents": [],
@@ -155,7 +161,7 @@ def from_sample_file(path: str | Path) -> dict:
         b = r["body"]
         ref = _ph(b["contact"]["id"])[1]
         snap["contacts"].append({"id": f"R{i}", "name": names.get(ref, ""), "role": b.get("description", ""),
-                                 "email": emails.get(ref, "")})
+                                 "email": emails.get(ref, ""), "phone": phones.get(ref, "")})
     for i, it in enumerate(d["notes"]["items"], 1):
         b = it["body"]
         snap["notes"].append({"id": f"N{i}", "date": b.get("date"), "title": b.get("subject", ""),

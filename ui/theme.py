@@ -95,6 +95,27 @@ h1 {{ font-size: 2.3rem !important; }} h2 {{ font-size: 1.8rem !important; }} h3
 .lm-pill.edited {{ background: #EFF8FF; color: #175CD3; border: 1px solid #B2DDFF; }}
 .lm-src a {{ color: {NAVY}; font-weight: 600; }}
 
+/* money cards: the frame is a keyed Streamlit container (st-key-lmcard_<class>_<key>) so a real button
+   ("Where this comes from" / "Review" / "Reviewed by ...") can sit INSIDE the card and open a pop-up */
+div[class*="st-key-lmcard_"] {{ border: 1px solid {LINE}; border-radius: 12px; padding: 1rem 1.15rem 0.6rem; background: #fff;
+    gap: 0.4rem; height: 100%; }}
+div[class*="st-key-lmcard_warn_"] {{ border-left: 5px solid {AMBER}; }}
+div[class*="st-key-lmcard_needs_review_"] {{ border: 2px solid {AMBER}; background: #FFFAEB; box-shadow: 0 0 0 4px #FEF0C7; }}
+[data-testid="stColumn"]:has(div[class*="st-key-lmcard_"]) > div {{ height: 100%; }}
+.lm-card-in {{ display: flex; flex-direction: column; gap: 0.35rem; }}
+div[class*="st-key-srclink_"] {{ margin-top: auto; border-top: 1px dashed {LINE}; padding-top: 0.35rem; }}
+div[class*="st-key-srclink_"] .stButton > button {{ background: none !important; border: none !important; box-shadow: none !important;
+    min-height: 0 !important; padding: 0.15rem 0 !important; color: #175CD3 !important; text-decoration: underline;
+    text-underline-offset: 3px; font-weight: 600; justify-content: flex-start; }}
+div[class*="st-key-srclink_"] .stButton > button p {{ font-size: 1rem !important; color: #175CD3 !important; }}
+div[class*="st-key-srclink_"] .stButton > button:hover p {{ color: #0B4A9E !important; }}
+div[class*="st-key-lmcard_needs_review_"] div[class*="st-key-srclink_"] .stButton > button p {{ font-weight: 700; }}
+.lm-digest {{ border: 1px solid {LINE}; border-left: 6px solid {NAVY}; border-radius: 12px; padding: 0.7rem 1rem;
+    margin: 0.2rem 0 0.6rem; font-size: 0.98rem; }}
+.lm-digest b {{ color: {NAVY}; }}
+.lm-digest .muted {{ color: {MUTED}; font-size: 0.9rem; }}
+.lm-ok {{ color: {GREEN}; font-weight: 700; }} .lm-bad {{ color: {RED}; font-weight: 700; }} .lm-meh {{ color: {AMBER}; font-weight: 700; }}
+
 /* empty state */
 .lm-empty {{ text-align: center; padding: 2.5rem 1rem 1rem; }}
 .lm-empty h1 {{ font-size: 2.6rem !important; margin-bottom: 0.4rem; }}
@@ -211,18 +232,42 @@ def review_badge(rv: dict) -> str:
     return f'<span class="lm-rev {st_}">{esc(text)}</span>'
 
 
-def card(k: dict) -> str:
-    """One money card: label, review status, number, what's behind it (one item per line), and a warning if any.
-    Where it comes from is shown separately (source_html), behind a click."""
+def card_class(k: dict) -> str:
+    """needs_review | warn | plain: picks the card's border (see the st-key-lmcard_* CSS)."""
+    rv = k.get("review") or {}
+    return "needs_review" if rv.get("status") == "needs_review" else ("warn" if k.get("warn") else "plain")
+
+
+def card_body(k: dict) -> str:
+    """What's inside one money card: label, review status, number, what's behind it, and a warning if any.
+    The card's frame is a Streamlit container (so the "Where this comes from" link can sit inside it)."""
     rv = k.get("review") or {"status": "not_required", "label": ""}
-    cls = "needs_review" if rv["status"] == "needs_review" else ("warn" if k.get("warn") else "")
-    return (f'<div class="lm-card {cls}"><div class="lm-label">{esc(k["label"])}</div>'
+    return (f'<div class="lm-card-in"><div class="lm-label">{esc(k["label"])}</div>'
             + (review_badge(rv) if rv.get("label") else "")
             + f'<div class="lm-value">{esc(k["value"])}</div>'
             + (groups_html(k["groups"]) if k.get("groups") else "")
             + rich(k.get("sub", ""))
             + (f'<div class="lm-why">⚠ {bold_money(k["why"])}</div>' if k.get("why") else "")
             + '</div>')
+
+
+def card(k: dict) -> str:
+    """The whole card as one HTML block (for places with no link inside, e.g. previews)."""
+    cls = card_class(k)
+    return f'<div class="lm-card {"" if cls == "plain" else cls}">{card_body(k)}</div>'
+
+
+def source_link_label(k: dict) -> str:
+    """Words on the blue link inside a card. Needs review -> "Review"; approved -> "Reviewed by Sam"."""
+    rv = k.get("review") or {}
+    who = (rv.get("by") or "").strip()
+    if rv.get("status") == "needs_review":
+        return "Review →"
+    if rv.get("status") == "approved":
+        return f"✓ Reviewed by {who}" if who else "✓ Reviewed"
+    if rv.get("status") == "corrected":
+        return f"✎ Corrected by {who}" if who else "✎ Corrected"
+    return "Where this comes from"
 
 
 def source_html(k: dict) -> str:
@@ -240,7 +285,7 @@ def review_summary(cards: list[dict]) -> str:
     if not need:
         return '<div class="lm-summary done">✓ Every number is checked or reviewed.</div>'
     return (f'<div class="lm-summary todo">⚠ {len(need)} of {len(cards)} numbers need your review: '
-            f'{esc(", ".join(need))}. Open “Where this comes from” under each one.</div>')
+            f'{esc(", ".join(need))}. Click “Review” on each card.</div>')
 
 def empty_state(title: str, text: str):
     st.markdown(f'<div class="lm-empty"><h1>{esc(title)}</h1><div class="lm-rule"></div><p>{esc(text)}</p></div>',

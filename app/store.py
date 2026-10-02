@@ -7,6 +7,8 @@ Tables
   card_edits   a person's correction to a money card on the brief (Clio is never changed)
   card_reviews what a PERSON decided about a money card (approved / undo), with the snapshot they looked at
   audit        who did what, when. Append-only: triggers refuse UPDATE and DELETE.
+  digest_runs  each daily digest run: one row per case per day (scheduled) or per click (manual), with what
+               each channel did. The unique run_key is what stops a retry or a double click sending twice.
 
 Schema changes are numbered migrations (PRAGMA user_version), run once per process, so an existing
 database is upgraded in place and never has to be deleted. WAL mode lets the dashboard, the provider
@@ -76,7 +78,19 @@ def _m3_append_only_audit(con: sqlite3.Connection) -> None:
     """)
 
 
-MIGRATIONS = [_m1_tables, _m2_actor_snapshot_and_hashed_refs, _m3_append_only_audit]   # append, never edit
+def _m4_digest_runs(con: sqlite3.Connection) -> None:
+    con.executescript("""
+        CREATE TABLE IF NOT EXISTS digest_runs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, run_key TEXT UNIQUE NOT NULL, matter_id TEXT, trigger TEXT,
+            actor TEXT DEFAULT '', status TEXT, started_at TEXT, finished_at TEXT DEFAULT '',
+            snapshot_fetched_at TEXT DEFAULT '', data_age_h REAL, email_status TEXT DEFAULT '',
+            slack_status TEXT DEFAULT '', recipients TEXT DEFAULT '', error TEXT DEFAULT '', summary TEXT DEFAULT '');
+        CREATE INDEX IF NOT EXISTS digest_runs_matter ON digest_runs(matter_id, started_at);
+    """)
+
+
+MIGRATIONS = [_m1_tables, _m2_actor_snapshot_and_hashed_refs, _m3_append_only_audit,
+              _m4_digest_runs]   # append, never edit
 
 
 def migrate(con: sqlite3.Connection) -> int:
@@ -204,13 +218,79 @@ def set_card_review(matter_id, card_key: str, status: str, value: float | None, 
             con, actor=by)
 
 
+# ---------- daily digest runs ----------
+DIGEST_DONE = ("sent", "skipped", "unavailable")      # finished: never send this run again
+
+
+def claim_digest(run_key: str, matter_id, trigger: str, actor: str = "", stale_after_s: int = 600) -> tuple[str, dict]:
+    """Reserve one digest run. Returns (state, row):
+      new     first time: go ahead
+      resume  an earlier try failed part-way (or crashed): go ahead, but only redo channels that didn't go out
+      done    already finished (e.g. n8n retried, or someone double-clicked): do nothing
+      busy    another process is sending it right now (started < stale_after_s ago): do nothing
+    The unique run_key + BEGIN IMMEDIATE make this safe across the API, the dashboard and n8n retries."""
+    con = _db()
+    con.isolation_level = None
+    try:
+        con.execute("BEGIN IMMEDIATE")
+        r = con.execute("SELECT * FROM digest_runs WHERE run_key = ?", (run_key,)).fetchone()
+        if r is None:
+            con.execute("INSERT INTO digest_runs (run_key, matter_id, trigger, actor, status, started_at) "
+                        "VALUES (?,?,?,?, 'running', ?)", (run_key, str(matter_id), trigger, actor, now()))
+            state = "new"
+        elif r["status"] in DIGEST_DONE:
+            state = "done"
+        elif r["status"] == "running" and \
+                (datetime.now(timezone.utc) - datetime.fromisoformat(r["started_at"])).total_seconds() < stale_after_s:
+            state = "busy"
+        else:                                   # failed / partial / a crashed run older than stale_after_s
+            con.execute("UPDATE digest_runs SET status = 'running', started_at = ?, actor = ? WHERE run_key = ?",
+                        (now(), actor or r["actor"], run_key))
+            state = "resume"
+        row = dict(con.execute("SELECT * FROM digest_runs WHERE run_key = ?", (run_key,)).fetchone())
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+    finally:
+        con.close()
+    return state, row
+
+
+def finish_digest(run_key: str, **cols) -> None:
+    """Save how a run ended (status, email_status, slack_status, recipients, error, ...)."""
+    allowed = {"status", "snapshot_fetched_at", "data_age_h", "email_status", "slack_status", "recipients",
+               "error", "summary"}
+    cols = {k: v for k, v in cols.items() if k in allowed}
+    cols["finished_at"] = now()
+    with _db() as con:
+        con.execute(f"UPDATE digest_runs SET {', '.join(f'{k} = ?' for k in cols)} WHERE run_key = ?",
+                    (*cols.values(), run_key))
+
+
+def digest_runs(matter_id, limit: int = 10) -> list[dict]:
+    """Newest first."""
+    with _db() as con:
+        rows = con.execute("SELECT * FROM digest_runs WHERE matter_id = ? ORDER BY started_at DESC, id DESC LIMIT ?",
+                           (str(matter_id), limit)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def last_digest(matter_id, sent_only: bool = False) -> dict | None:
+    """The newest run (or the newest one whose email went out)."""
+    for r in digest_runs(matter_id, 50):
+        if not sent_only or r["email_status"] == "sent":
+            return r
+    return None
+
+
 def purge_matter(matter_id, by: str = "") -> dict:
     """Retention: remove what we keep about one case (edits, reviews, last-opened), turn off its share links
     and blank their frozen copies. The audit log keeps the record that it happened (it is append-only)."""
     mid = str(matter_id)
     with _db() as con:
         n = {t: con.execute(f"DELETE FROM {t} WHERE matter_id = ?", (mid,)).rowcount
-             for t in ("card_edits", "card_reviews", "last_opened")}
+             for t in ("card_edits", "card_reviews", "last_opened", "digest_runs")}
         n["shares"] = con.execute("UPDATE shares SET revoked = 1, edited_text = '{}' WHERE matter_id = ?",
                                   (mid,)).rowcount
         log("matter_purged", mid, n, con, actor=by)

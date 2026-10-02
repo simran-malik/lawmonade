@@ -61,6 +61,20 @@ class Settings(BaseSettings):
     smtp_user: str = ""
     smtp_password: str = ""           # base of share links sent to providers
 
+    # Daily digest (app/digest.py): email every weekday, Slack only when something is urgent
+    digest_enabled: bool = True
+    digest_recipients: str = ""          # comma-separated fallback when Clio has no responsible attorney email
+    firm_email_domains: str = ""         # comma-separated allowlist, e.g. "smithlaw.com"; empty = any address
+    digest_upcoming_days: int = 14       # "coming up" window
+    digest_urgent_days: int = 1          # due today or within this many days -> Slack ping
+    digest_sol_warn_days: int = 60       # statute of limitations closer than this -> Slack ping
+    digest_long_overdue_days: int = 90   # older overdue items go in their own group
+    digest_list_max: int = 10            # items per list in the email, then "and N more"
+    digest_max_age_h: float = 48         # Clio down AND the saved copy is older than this -> don't send numbers
+    digest_manual_cooldown_s: int = 120  # button pressed again within this time -> ask first
+    digest_api_key: str = ""             # if set, POST /matters/{id}/digest/run needs header X-Api-Key
+    dashboard_url: str = "http://localhost:8501"   # firm dashboard link in digests (internal)
+
     data_dir: Path = ROOT / "data"
     fields_file: Path = ROOT / "config" / "fields.yaml"   # Clio custom field names per money card (per firm)
     snapshot_keep: int = 30                               # past copies of each case to keep (for "what changed")

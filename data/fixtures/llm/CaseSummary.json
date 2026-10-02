@@ -1,0 +1,19 @@
+{
+ "sentences": [
+  {
+   "text": "The client was sideswiped by a Metro-North utility vehicle on Cedar Street in New Rochelle, injuring both shoulders, both knees and his head.",
+   "source_id": "S1",
+   "quote": "Sideswiped by a Metro-North utility vehicle on Cedar Street, New Rochelle. Both shoulders, both knees, and a head injury."
+  },
+  {
+   "text": "Treatment is still active and ongoing over three years post-loss, with no discharge and no MMI declared.",
+   "source_id": "S2",
+   "quote": "Active and ongoing, over three years post-loss. Never discharged, no MMI declared."
+  },
+  {
+   "text": "Liability is contested on two separate levels, and neither has been investigated yet.",
+   "source_id": "S3",
+   "quote": "Contested on two independent levels, neither investigated."
+  }
+ ]
+}

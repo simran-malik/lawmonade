@@ -17,6 +17,7 @@ Commands
   api                       API             http://localhost:8000/docs
   config                    show the settings this run would use (secrets hidden)
   purge --matter ID [--with-cache]   delete what we keep about one case (retention; 'sample' resets the demo)
+  digest [--matter ID] [--preview] [--send]   daily digest now: --preview writes logs/digest_preview.html, --send sends
   up                        start API + dashboard + n8n in the background (logs in logs/)
   stop [--docker]           stop everything (add --docker to also quit Docker Desktop)
   status                    show what is running
@@ -65,7 +66,9 @@ port_busy() { lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
 env_val() { grep -E "^$1=" .env 2>/dev/null | head -1 | cut -d= -f2- | tr -d "\"'"; }
 # n8n data (account, workflows) lives in the n8n_data volume.
 # The Slack webhook is passed in from .env, never saved in the workflow JSON (workflows use $env.SLACK_WEBHOOK_URL).
-N8N_RUN="-p 5678:5678 -e N8N_BLOCK_ENV_ACCESS_IN_NODE=false -e SLACK_WEBHOOK_URL=$(env_val SLACK_WEBHOOK_URL) -v n8n_data:/home/node/.n8n n8nio/n8n"
+TZ_FIRM="$(env_val TIMEZONE)"; TZ_FIRM="${TZ_FIRM:-America/Los_Angeles}"
+# GENERIC_TIMEZONE: the digest schedule runs on the firm's clock (daylight saving included), not UTC
+N8N_RUN="-p 5678:5678 -e N8N_BLOCK_ENV_ACCESS_IN_NODE=false -e SLACK_WEBHOOK_URL=$(env_val SLACK_WEBHOOK_URL) -e DIGEST_API_KEY=$(env_val DIGEST_API_KEY) -e GENERIC_TIMEZONE=$TZ_FIRM -e TZ=$TZ_FIRM -v n8n_data:/home/node/.n8n n8nio/n8n"
 
 up() {
   for p in "${PORT:-8000}" 8501 8502; do
@@ -135,6 +138,7 @@ case "$cmd" in
   api)       uv run uvicorn app.main:app --reload --port "${PORT:-8000}" ;;
   config)    uv run python scripts/show_config.py ;;
   purge)     uv run python scripts/purge.py ${PASS[@]+"${PASS[@]}"} ;;
+  digest)    uv run python scripts/digest.py ${PASS[@]+"${PASS[@]}"} ;;
   templates) uv run python scripts/make_templates.py ;;
   gmail)     uv run python -m app.emailer ;;
   n8n)       docker rm -f n8n >/dev/null 2>&1 || true; docker run -it --rm --name n8n $N8N_RUN ;;

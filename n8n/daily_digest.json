@@ -1,0 +1,55 @@
+{
+  "name": "Law-monade: daily case digest (weekdays 6:55 AM firm time)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [{ "field": "cronExpression", "expression": "55 6 * * 1-5" }] }
+      },
+      "id": "d1d2c3d4-0001-4000-8000-000000000001",
+      "name": "Weekdays 6:55 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8000/digest/matters",
+        "options": { "timeout": 30000 }
+      },
+      "id": "d1d2c3d4-0002-4000-8000-000000000002",
+      "name": "Cases to digest",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:8000/matters/{{ $json.id }}/digest/run",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "X-Api-Key", "value": "={{ $env.DIGEST_API_KEY }}" }] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ trigger: 'scheduled', actor: 'n8n' }) }}",
+        "options": { "timeout": 180000, "batching": { "batch": { "batchSize": 1, "batchInterval": 2000 } } }
+      },
+      "id": "d1d2c3d4-0003-4000-8000-000000000003",
+      "name": "Send digest (safe to retry: once per case per day)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [700, 300],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 30000,
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "Weekdays 6:55 AM": { "main": [[{ "node": "Cases to digest", "type": "main", "index": 0 }]] },
+    "Cases to digest": { "main": [[{ "node": "Send digest (safe to retry: once per case per day)", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "timezone": "America/Los_Angeles", "executionOrder": "v1" }
+}
