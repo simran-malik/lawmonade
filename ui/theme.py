@@ -114,6 +114,7 @@ FACTS = [
 def apply():
     st.set_page_config(page_title="Lawmonade", page_icon="⚖️", layout="wide", initial_sidebar_state="collapsed")
     st.markdown(CSS, unsafe_allow_html=True)
+    st.markdown(CSS_MORE, unsafe_allow_html=True)
 
 
 def esc(x) -> str:
@@ -183,3 +184,60 @@ def run_steps(steps: list[tuple[str, callable]], title: str = "Getting your case
         times.append(time.monotonic() - t0)
     box.markdown(_steps_html(labels, len(labels), times, fact_i, title + " · Done"), unsafe_allow_html=True)
     return times
+
+
+# ---------- timeline + sharing + provider page ----------
+CSS_MORE = f"""
+<style>
+.lm-month {{ font-family: 'Source Serif 4', Georgia, serif; color: {NAVY}; font-size: 1.35rem; font-weight: 700;
+    margin: 1.4rem 0 0.4rem; padding-bottom: 0.25rem; border-bottom: 2px solid {GOLD}; }}
+.lm-item {{ display: grid; grid-template-columns: 7.5rem 1fr; gap: 1rem; padding: 0.75rem 0.4rem;
+    border-bottom: 1px solid {LINE}; }}
+.lm-item .d {{ color: {MUTED}; font-variant-numeric: tabular-nums; font-size: 0.98rem; padding-top: 0.15rem; }}
+.lm-item .h {{ font-weight: 600; font-size: 1.08rem; }}
+.lm-item .x {{ color: {INK}; margin-top: 0.2rem; white-space: pre-wrap; overflow-wrap: anywhere; }}
+.lm-item details summary {{ cursor: pointer; color: {NAVY}; font-weight: 600; margin-top: 0.3rem; font-size: 0.95rem; }}
+.lm-item details[open] summary {{ margin-bottom: 0.3rem; }}
+.lm-kind {{ display: inline-block; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    border-radius: 6px; padding: 0.1rem 0.45rem; margin-right: 0.5rem; vertical-align: 2px; border: 1px solid {LINE};
+    background: {SOFT}; color: {NAVY}; }}
+.lm-kind.Task {{ background: #FFF8E6; border-color: #F5D98B; color: {GOLD_TEXT}; }}
+.lm-kind.Email, .lm-kind.Phone {{ background: #EEF2F8; border-color: #C7D2E3; }}
+.lm-kind.Expense {{ background: #ECFDF3; border-color: #ABEFC6; color: {GREEN}; }}
+.lm-late {{ color: {RED}; font-weight: 700; font-size: 0.85rem; margin-left: 0.4rem; }}
+.lm-srcline {{ font-size: 0.85rem; color: {MUTED}; margin-top: 0.3rem; }}
+
+.lm-stepnum {{ display: inline-flex; width: 2rem; height: 2rem; border-radius: 50%; background: {NAVY}; color: #fff;
+    align-items: center; justify-content: center; font-weight: 700; margin-right: 0.6rem; border: 2px solid {GOLD}; }}
+.lm-stephead {{ font-family: 'Source Serif 4', Georgia, serif; color: {NAVY}; font-size: 1.35rem; font-weight: 700;
+    margin: 1.2rem 0 0.6rem; display: flex; align-items: center; }}
+.lm-never {{ background: {SOFT}; border: 1px dashed {LINE}; border-radius: 10px; padding: 0.7rem 1rem; color: {MUTED};
+    font-size: 0.95rem; }}
+.lm-preview-frame {{ border: 3px solid {NAVY}; border-radius: 16px; padding: 0.4rem; background: {SOFT}; }}
+.lm-preview-tag {{ display: inline-block; background: {NAVY}; color: #fff; border-radius: 8px 8px 0 0; padding: 0.25rem 0.8rem;
+    font-size: 0.85rem; font-weight: 700; letter-spacing: 0.04em; }}
+
+/* provider page */
+.lm-pv {{ background: #fff; border-radius: 12px; padding: 1.2rem 1.4rem; }}
+.lm-pv h2 {{ margin-top: 0 !important; }}
+.lm-status {{ display: flex; align-items: center; gap: 1rem; padding: 1rem 1.2rem; border-radius: 12px; margin: 0.6rem 0 1rem; }}
+.lm-status.on {{ background: #ECFDF3; border: 2px solid #ABEFC6; }}
+.lm-status.off {{ background: #FEF3F2; border: 2px solid #FECDCA; }}
+.lm-status .big {{ font-size: 1.5rem; font-weight: 700; }}
+.lm-status.on .big {{ color: {GREEN}; }} .lm-status.off .big {{ color: {RED}; }}
+.lm-sec {{ border: 1px solid {LINE}; border-radius: 12px; padding: 0.9rem 1.2rem; margin-bottom: 0.9rem; }}
+.lm-sec .lm-label {{ margin-bottom: 0.4rem; }}
+.lm-need {{ padding: 0.5rem 0; border-bottom: 1px solid {LINE}; }} .lm-need:last-child {{ border-bottom: none; }}
+.lm-range {{ font-size: 2rem; font-weight: 700; color: {NAVY}; }}
+.lm-msg {{ border-left: 4px solid {GOLD}; padding: 0.6rem 1rem; background: {SOFT}; border-radius: 6px; white-space: pre-wrap; }}
+.lm-foot {{ color: {MUTED}; font-size: 0.9rem; margin-top: 0.8rem; }}
+</style>
+"""
+
+
+def apply_more():
+    st.markdown(CSS_MORE, unsafe_allow_html=True)
+
+
+def step_head(n: int, text: str):
+    st.markdown(f'<div class="lm-stephead"><span class="lm-stepnum">{n}</span>{esc(text)}</div>', unsafe_allow_html=True)

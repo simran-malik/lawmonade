@@ -142,12 +142,39 @@ def case_screen(s: dict):
                    f"{c['calendar']} calendar entries · {c['expenses']} expenses · {c['documents']} documents · "
                    f"{c['contacts']} people and companies")
     with timeline:
-        st.info("The full timeline is added in a later step.")
+        from ui import timeline as tl
+        tl.render(s)
     with share:
-        st.info("Sharing with providers is added in a later step.")
+        from ui import share_tab
+        share_tab.render(s)
 
 
-if ss.snap:
+def provider_page(token: str):
+    """What a provider sees when they open their link. No Clio access: only the approved, frozen copy."""
+    import json
+
+    from app import store
+    from ui import provider_view
+    st.markdown(f'<div class="lm-bar"><div class="lm-brand">{esc(settings.firm_name)}'
+                f'<small>Secure case update · read-only</small></div>'
+                f'<div><span class="lm-badge">SHARED WITH YOU</span></div></div>', unsafe_allow_html=True)
+    sh = store.get_share(token)
+    if not sh:
+        theme.error_box("This link has expired or was turned off.",
+                        "Contact the law firm and ask for a new link.")
+        return
+    if not ss.get("viewed_" + token):          # count each visit once
+        store.record_view(token, "provider page")
+        ss["viewed_" + token] = True
+    _, mid, _ = st.columns([1, 3, 1])
+    with mid:
+        st.markdown(provider_view.html(json.loads(sh["edited_text"])), unsafe_allow_html=True)
+
+
+share_token = st.query_params.get("share")
+if share_token:
+    provider_page(share_token)
+elif ss.snap:
     case_screen(ss.snap)
 else:
     welcome()
