@@ -104,6 +104,20 @@ def case_header(s: dict):
                 unsafe_allow_html=True)
 
 
+def money_row(s: dict):
+    from app.kpis import kpis
+    st.markdown("### What it's worth, and what's behind it")
+    ks = kpis(s)
+    for col, k in zip(st.columns(len(ks)), ks):
+        with col:
+            st.markdown(theme.card(k["label"], k["value"], k["sub"], k["source"], k["sure"], k["why"], k["warn"]),
+                        unsafe_allow_html=True)
+            if k.get("items"):
+                with st.expander("See the items"):
+                    for line in k["items"]:
+                        st.markdown(f"- {line}")
+
+
 def case_screen(s: dict):
     theme.top_bar(s["source"])
     case_header(s)
@@ -122,12 +136,11 @@ def case_screen(s: dict):
 
     brief, timeline, share = st.tabs(["Case brief", "Everything, by date", "Share with a provider"])
     with brief:
+        money_row(s)
         c = snapshot.counts(s)
-        st.markdown(f"### What's in this case file")
-        st.markdown(f"{c['notes']} notes · {c['communications']} emails and calls · {c['tasks']} tasks · "
-                    f"{c['calendar']} calendar entries · {c['expenses']} expenses · {c['documents']} documents · "
-                    f"{c['contacts']} people and companies")
-        st.info("The two-minute brief (worth, coverage, overdue, what changed) is added in the next steps.")
+        st.caption(f"Read from {c['notes']} notes · {c['communications']} emails and calls · {c['tasks']} tasks · "
+                   f"{c['calendar']} calendar entries · {c['expenses']} expenses · {c['documents']} documents · "
+                   f"{c['contacts']} people and companies")
     with timeline:
         st.info("The full timeline is added in a later step.")
     with share:
