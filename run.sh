@@ -22,6 +22,7 @@ Commands
   stop [--docker]           stop everything (add --docker to also quit Docker Desktop)
   status                    show what is running
   gmail                     one-time Google sign-in so Lawmonade can send email
+  gcal                      one-time Google sign-in so Lawmonade can add tasks and events to Google Calendar
   templates                 remake the Word templates
   n8n                       start n8n in this terminal
 
@@ -141,6 +142,7 @@ case "$cmd" in
   digest)    uv run python scripts/digest.py ${PASS[@]+"${PASS[@]}"} ;;
   templates) uv run python scripts/make_templates.py ;;
   gmail)     uv run python -m app.emailer ;;
+  gcal)      uv run python -m app.gcal ;;
   n8n)       docker rm -f n8n >/dev/null 2>&1 || true; docker run -it --rm --name n8n $N8N_RUN ;;
   up)        up ;;
   stop)      stop ${PASS[@]+"${PASS[@]}"} ;;

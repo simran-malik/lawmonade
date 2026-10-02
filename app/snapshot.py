@@ -180,7 +180,7 @@ def from_sample_file(path: str | Path) -> dict:
                               "src": src(W, "Task", f"T{i}", f"Task · due {nice_date(b.get('due_at'))} · {b.get('name', '')}")})
     for i, it in enumerate(d["calendar_entries"]["items"], 1):
         b = it["body"]
-        snap["calendar"].append({"id": f"E{i}", "date": b.get("start_at"), "title": b.get("summary", ""),
+        snap["calendar"].append({"id": f"E{i}", "date": b.get("start_at"), "end": b.get("end_at"), "title": b.get("summary", ""),
                                  "text": b.get("description", ""),
                                  "src": src(W, "Calendar", f"E{i}", f"Calendar · {nice_date(b.get('start_at'))} · {b.get('summary', '')}")})
     for i, it in enumerate(d["expenses"]["items"], 1):

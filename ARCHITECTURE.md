@@ -69,7 +69,7 @@ flowchart LR
   N8N["n8n<br/>schedules, Slack"] --> API
 ```
 
-Data moves one way: **Clio → snapshot → screens**. Nothing in the app writes to Clio. Everything we create (share links, views, audit log, saved AI answers) lives in our own storage.
+Data moves one way: **Clio → snapshot → screens**. Nothing in the app writes to Clio. Everything we create (share links, views, audit log, saved AI answers, which items we put on Google Calendar) lives in our own storage.
 
 ## Components
 
@@ -127,6 +127,22 @@ flowchart LR
 API: `GET /digest/matters`, `POST /matters/{id}/digest/run` (`{"trigger","actor","dry_run","force","email_only"}`,
 optional `X-Api-Key` = `DIGEST_API_KEY`), `GET /matters/{id}/digest/runs`. CLI: `bash run.sh digest [--matter ID] [--send]`.
 
+## Add to Google Calendar
+
+On the **Everything, by date** tab, under the search bar, **Add all to calendar** puts every task and calendar entry dated
+today or later (open tasks only) that isn't on the calendar yet onto `GOOGLE_CALENDAR_ID`. Each task and calendar row
+also has its own **Add to calendar** button (works for past and finished items too); once added it shows **✓ On calendar**
+with a link to the event. Code: `app/gcal.py`, `ui/timeline.py`. Setup once: `bash run.sh gcal`.
+
+| Part | What it does | Edge cases handled |
+|---|---|---|
+| Fixed event id | `lm` + hash of calendar + case + item | A double click, a retry after a timeout, or two people pressing at once: Google refuses the second insert (409) and we count it as "already on your calendar". So the insert is safe to retry. |
+| `calendar_adds` (SQLite) | One row per item per calendar: event id, link, who, when (+ an audit line) | Drives "Add all" (skips what's there) and the ✓ on each row. Changing `GOOGLE_CALENDAR_ID` starts fresh for the new calendar. Purge removes the rows, not the Google events. |
+| Event shape | Task -> all-day event on its due day (firm time zone). Calendar entry -> its start/end time (1 h if Clio has no end) | Description has the case, the Clio source line and the link back into Clio. Items without a date get no button. |
+| Errors | "Add all" keeps going past one bad item | Sign-in expired or wrong calendar id: stops after the first item and says how to fix it. |
+
+Not copied later: if a date changes in Clio, the Google event keeps the old one (revisit: update events whose Clio item changed).
+
 ## Reliability
 
 **Retries** (`app/retry.py`): exponential backoff (0.5 s, 1 s, 2 s plus a little randomness, or the server's `Retry-After`), capped at 10 s total so the screen never hangs.
@@ -134,6 +150,7 @@ optional `X-Api-Key` = `DIGEST_API_KEY`), `GET /matters/{id}/digest/runs`. CLI: 
 | Call | Safe to repeat? | Retried on | Never retried |
 |---|---|---|---|
 | Clio GET | yes | timeout, connection error, 429, 5xx | other 4xx |
+| Google Calendar insert | yes (fixed event id: a repeat gets 409 = already added) | timeout, connection error, 429, 5xx | other 4xx |
 | Gmail / Slack / Twilio send | **no** | connection error (nothing sent), 429, 503 | timeout, 500, other 4xx: the message may already have gone out, and a provider getting the same email twice is worse than a clear error |
 | Claude | — | the Anthropic SDK retries once itself | — |
 

@@ -211,7 +211,7 @@ def load_steps(query: str, matter_id=None):
                        for t in _get_all("tasks.json", {"matter_id": mid},
                                          ["id,name,description,due_at,status,completed_at,assignee{id,name}",
                                           "id,name,description,due_at,status,completed_at", "id,name,description,due_at,status"])]
-        st["calendar"] = [{"id": e["id"], "date": e.get("start_at"), "title": e.get("summary", ""), "text": e.get("description", ""),
+        st["calendar"] = [{"id": e["id"], "date": e.get("start_at"), "end": e.get("end_at"), "title": e.get("summary", ""), "text": e.get("description", ""),
                            "src": src(W, "Calendar", e["id"], f"Calendar · {nice_date(e.get('start_at'))} · {e.get('summary', '')}")}
                           for e in _get_all("calendar_entries.json", {"matter_id": mid},
                                             ["id,summary,description,start_at,end_at", "id,summary,start_at"])]

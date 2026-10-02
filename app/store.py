@@ -9,6 +9,8 @@ Tables
   audit        who did what, when. Append-only: triggers refuse UPDATE and DELETE.
   digest_runs  each daily digest run: one row per case per day (scheduled) or per click (manual), with what
                each channel did. The unique run_key is what stops a retry or a double click sending twice.
+  calendar_adds which Clio tasks / calendar entries we put on Google Calendar (one row per item per calendar),
+               so "Add all" skips them and each row shows "On your calendar"
 
 Schema changes are numbered migrations (PRAGMA user_version), run once per process, so an existing
 database is upgraded in place and never has to be deleted. WAL mode lets the dashboard, the provider
@@ -89,8 +91,16 @@ def _m4_digest_runs(con: sqlite3.Connection) -> None:
     """)
 
 
+def _m5_calendar_adds(con: sqlite3.Connection) -> None:
+    con.executescript("""
+        CREATE TABLE IF NOT EXISTS calendar_adds (
+            matter_id TEXT, item_key TEXT, calendar_id TEXT, event_id TEXT, event_link TEXT DEFAULT '',
+            added_by TEXT DEFAULT '', added_at TEXT, PRIMARY KEY (matter_id, item_key, calendar_id));
+    """)
+
+
 MIGRATIONS = [_m1_tables, _m2_actor_snapshot_and_hashed_refs, _m3_append_only_audit,
-              _m4_digest_runs]   # append, never edit
+              _m4_digest_runs, _m5_calendar_adds]   # append, never edit
 
 
 def migrate(con: sqlite3.Connection) -> int:
@@ -290,11 +300,30 @@ def purge_matter(matter_id, by: str = "") -> dict:
     mid = str(matter_id)
     with _db() as con:
         n = {t: con.execute(f"DELETE FROM {t} WHERE matter_id = ?", (mid,)).rowcount
-             for t in ("card_edits", "card_reviews", "last_opened", "digest_runs")}
+             for t in ("card_edits", "card_reviews", "last_opened", "digest_runs", "calendar_adds")}
         n["shares"] = con.execute("UPDATE shares SET revoked = 1, edited_text = '{}' WHERE matter_id = ?",
                                   (mid,)).rowcount
         log("matter_purged", mid, n, con, actor=by)
     return n
+
+
+# ---------- Google Calendar ----------
+def save_calendar_add(matter_id, item_key: str, calendar_id: str, event_id: str, event_link: str = "",
+                      by: str = "") -> None:
+    """Remember that this item is on this calendar. Keeps the first row if it is saved twice."""
+    with _db() as con:
+        n = con.execute("INSERT OR IGNORE INTO calendar_adds VALUES (?,?,?,?,?,?,?)",
+                        (str(matter_id), item_key, calendar_id, event_id, event_link, by, now())).rowcount
+        if n:
+            log("calendar_added", f"{matter_id}:{item_key}", {"calendar": calendar_id, "event": event_id}, con, actor=by)
+
+
+def calendar_adds(matter_id, calendar_id: str) -> dict:
+    """{item key: {event_id, event_link, added_by, added_at}} for one case on one calendar."""
+    with _db() as con:
+        rows = con.execute("SELECT * FROM calendar_adds WHERE matter_id = ? AND calendar_id = ?",
+                           (str(matter_id), calendar_id)).fetchall()
+    return {r["item_key"]: dict(r) for r in rows}
 
 
 # ---------- last opened ----------

@@ -3,6 +3,7 @@
 credentials.json
 token.json
 token_gmail.json
+token_gcal.json
 
 # local data (case data never goes to git)
 logs/

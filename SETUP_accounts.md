@@ -93,7 +93,7 @@ In code: `from app.gemini import gemini_json, gemini_text, gemini_image`.
 5. **Clients > Create client** > type **Desktop app** > name `python` > Create > **Download JSON**.
 6. Rename the file to `credentials.json` and move it into `lawmonade/`.
 7. In Google Calendar (calendar.google.com): **Other calendars > + > Create new calendar** named `Hackathon Demo`. Open its settings > **Integrate calendar** > copy **Calendar ID** into `.env` as `GOOGLE_CALENDAR_ID`.
-8. Test: `bash run.sh calendar`. A browser opens. You will see "Google hasn't verified this app": click **Continue** (it's your own app). Allow. It should say OK.
+8. Sign in for Google Calendar (the **Add to calendar** buttons): `bash run.sh gcal`. A browser opens. You will see "Google hasn't verified this app": click **Continue** (it's your own app). Allow. It should say OK.
 
 ## 3. Google sign-in for n8n 🧑 (do after step 5)
 1. Same Google Cloud project > **Clients > Create client** > type **Web application** > name `n8n`.
