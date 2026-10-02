@@ -48,7 +48,7 @@ def _entry(it: dict, matter_url: str) -> str:
                 f'<details><summary>Read the rest</summary><div class="x">{esc(text[cut:].strip())}</div></details>')
     url, hint = it["src"].get("url"), it["src"].get("hint")
     if url and hint:
-        place = "Calendar" if it["kind"] == "Calendar" else "Activities"
+        place = {"Calendar": "Calendar", "Task": "Tasks"}.get(it["kind"], "Activities")
         link = (f' · <a href="{esc(url)}" target="_blank">Open {place} in Clio ↗</a>'
                 f' <span class="lm-hint">then search “{esc(hint)}”</span>')
     elif url:

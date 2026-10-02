@@ -69,8 +69,9 @@ def _get_all(path: str, params: dict, field_options: list[str]) -> list[dict]:
 # ---------- links into Clio's own web app ----------
 # Checked by hand in Clio Manage (Oct 2026):
 #   notes / communications / tasks tabs accept ?query={"value": "..."} and fill their search box
-#   tasks?taskId=<id> opens that task;  documents/<id>/details opens that document
-#   calendar and activities tabs have no search in the address, so we link the tab and say what to look for
+#   documents/<id>/details opens that document
+#   tasks?taskId=<id> and notes?id=<id> open the item in EDIT mode, so we don't use them
+#   tasks, calendar and activities: we link the tab and show what to type in its search box
 def _search(text: str) -> str:
     words = " ".join(str(text or "").split())[:80].rsplit(" ", 1)[0] if len(str(text or "")) > 80 else " ".join(str(text or "").split())
     return quote(json.dumps({"value": words}, separators=(",", ":")), safe=":,")
@@ -83,8 +84,8 @@ def item_link(kind: str, matter_id, item_id, title: str) -> tuple[str, str]:
         return f"{base}/notes?query={_search(title)}", ""
     if kind in ("Email", "Phone call"):
         return f"{base}/communications?query={_search(title)}", ""
-    if kind == "Task":
-        return f"{base}/tasks?taskId={item_id}", ""
+    if kind == "Task":      # tasks?taskId= opens the task in EDIT mode, so link the tab + a search hint instead
+        return f"{base}/tasks", title
     if kind == "Document":
         return f"{settings.clio_base}/nc/#/documents/{item_id}/details", ""
     if kind == "Calendar":

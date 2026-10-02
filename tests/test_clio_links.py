@@ -3,7 +3,8 @@ from app.clio import item_link
 
 
 def test_links():
-    assert item_link("Task", 7, 99, "x")[0].endswith("/nc/#/matters/7/tasks?taskId=99")
+    assert item_link("Task", 7, 99, "Call client") == (item_link("Task", 7, 99, "Call client")[0], "Call client")
+    assert item_link("Task", 7, 99, "x")[0].endswith("/nc/#/matters/7/tasks")
     assert item_link("Document", 7, 5, "x")[0].endswith("/nc/#/documents/5/details")
     url, hint = item_link("Note", 7, 1, "Intake summary")
     assert url.endswith('/notes?query=%7B%22value%22:%22Intake%20summary%22%7D') and hint == ""

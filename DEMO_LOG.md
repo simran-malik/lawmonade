@@ -96,3 +96,4 @@ Limits of this count:
 | 10:41 | The provider never sees the billed amount, only a payment range | The attorney's request: keep negotiation room |
 | 11:02 | The email carries only a secure link, never case details | Less exposure if an email is forwarded or misdirected |
 | 11:10 | App name shown as **Law-monade**; demo firm is the fictional **Brightwater & Vance Injury Law** (`FIRM_NAME` in `.env`) | Clear branding; no real firm's name used |
+| 11:31 | Task links open the Tasks tab with a search hint, not the task | Clio opens a single task in edit mode; avoid accidental edits |
