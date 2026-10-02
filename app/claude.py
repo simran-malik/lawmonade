@@ -18,19 +18,23 @@ T = TypeVar("T", bound=BaseModel)
 TIMEOUT_S = 120   # give up after 2 minutes instead of hanging the screen
 
 
-def client():
+def client(timeout: float | None = None):
+    """Anthropic client. Default: 2-minute limit + one retry (scripts, digests).
+    With a timeout (calls made while a person waits on the screen): that limit and no retry."""
     import anthropic
 
     if not settings.anthropic_api_key:
         raise RuntimeError("ANTHROPIC_API_KEY is empty in .env")
+    if timeout:
+        return anthropic.Anthropic(api_key=settings.anthropic_api_key, timeout=timeout, max_retries=0)
     # max_retries=1: one quick retry on a network blip, not several long ones
     return anthropic.Anthropic(api_key=settings.anthropic_api_key, timeout=TIMEOUT_S, max_retries=1)
 
 
-def claude_json(prompt: str, model: type[T], max_tokens: int = 16000) -> T:
+def claude_json(prompt: str, model: type[T], max_tokens: int = 16000, timeout: float | None = None) -> T:
     import anthropic
 
-    c = client()
+    c = client(timeout)
     if not hasattr(c.messages, "parse"):
         raise RuntimeError("Your anthropic package is too old for Structured Outputs. "
                            "Run: uv sync --upgrade-package anthropic")
@@ -49,7 +53,7 @@ def claude_json(prompt: str, model: type[T], max_tokens: int = 16000) -> T:
         u = getattr(r, "usage", None)
         usage.record("anthropic", settings.anthropic_model, getattr(u, "input_tokens", 0), getattr(u, "output_tokens", 0))
     except anthropic.APITimeoutError:
-        raise RuntimeError(f"Claude took longer than {TIMEOUT_S} s and was stopped. "
+        raise RuntimeError(f"Claude took longer than {timeout or TIMEOUT_S:.0f} s and was stopped. "
                            "Try again, or use --llm mock for the demo.") from None
 
     if r.stop_reason == "refusal":

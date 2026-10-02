@@ -20,7 +20,11 @@ FIELD_NAMES = {
     "specials": ["Medical Specials To Date", "Medical Specials", "Medical Bills", "Specials"],
     "incident": ["Date of Incident", "Incident Date", "Date of Loss", "Accident Date"],
 }
-MONEY = re.compile(r"\$\s?([\d,]+(?:\.\d{1,2})?)")
+# "$22,180.00", "$100k", "$1.2M", "$2 million". The suffix must end the word ("$5 Medicaid" is $5, not $5M).
+MONEY = re.compile(r"\$\s?(\d[\d,]*(?:\.\d+)?)(?:\s?(k|m|thousand|million)\b)?", re.I)
+SCALE = {"k": 1e3, "thousand": 1e3, "m": 1e6, "million": 1e6}
+# Policy limits written without "$", e.g. "100/300" or "25/50" (thousands, by PI convention): flag for a person
+SPLIT_LIMITS = re.compile(r"(?<![\d$,.])\d{2,4}\s*/\s*\d{2,4}(?![\d,])")
 MEDICAL = re.compile(r"medical|treatment|provider|lien", re.I)
 
 
@@ -44,7 +48,8 @@ def clio_link(snap: dict, field_name: str) -> dict | None:
 
 
 def amounts(text) -> list[float]:
-    return [float(x.replace(",", "")) for x in MONEY.findall(str(text or ""))]
+    """Dollar amounts in a text, in order. Handles k / M / thousand / million."""
+    return [float(n.replace(",", "")) * SCALE.get(suf.lower(), 1) for n, suf in MONEY.findall(str(text or ""))]
 
 
 def to_number(v) -> float | None:
@@ -134,6 +139,8 @@ def kpis(snap: dict, liens: dict | None = None) -> list[dict]:
     gap = (value - first) if (value is not None and first is not None) else None
     sub = str(cov_text or "").strip() + ("\nLimits confirmed" if ok in (True, "true", "True", 1) else "")
     why = "Read from free text with several limits listed. Check which applies." if len(cov) > 1 else ""
+    if not cov and SPLIT_LIMITS.search(str(cov_text or "")):
+        why = "Limits are written like \"100/300\" without a $ sign (usually thousands). Check and enter the amount."
     if gap and gap > 0:
         why = f"Case is worth {usd(gap)} more than this limit. " + why
     out.append(dict(key="coverage", amount=first, link=clio_link(snap, cname),

@@ -64,7 +64,8 @@ def _norm(text: str) -> str:
 
 def check_item(it: LienItem, text: str) -> tuple[bool, str]:
     """(ok, reason). The quote must really be in the Clio text, and the amount must be written in the quote."""
-    if not it.quote.strip() or _norm(it.quote) not in _norm(text):
+    # whole words only: a cut-off quote like "lien, $22" must not match "lien, $22,180.00"
+    if not it.quote.strip() or f" {_norm(it.quote)} " not in f" {_norm(text)} ":
         return False, "The AI's quote is not in the Clio text."
     if it.amount is not None and not any(abs(a - it.amount) < 0.01 for a in amounts(it.quote)):
         return False, "The AI's amount is not in its quote."
@@ -88,8 +89,12 @@ def analyze(snap: dict, ask=None) -> dict:
     if not text:
         return {"status": "no_field", "items": [], "total": None, "field": name}
     try:
-        if ask is None:
-            from app.llm import ask_json as ask
+        if ask is None:   # a person is waiting on the brief: short time limit, then fall back to the plain reading
+            from functools import partial
+
+            from app.config import settings
+            from app.llm import ask_json
+            ask = partial(ask_json, timeout=settings.llm_ui_timeout_s)
         reply = ask(PROMPT.format(name=name, text=text), LienBreakdown)
     except Exception as e:  # no key, timeout, offline cache miss...: the card falls back to the plain reading
         LOG.warning("[liens] AI breakdown unavailable: %s", e)

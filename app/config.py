@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     # Prices in USD per million tokens, for "cost per case" in the logs. Copy from the provider's pricing page.
     llm_price_in_per_mtok: float = 0.0
     llm_price_out_per_mtok: float = 0.0
+    # AI calls a person waits on (e.g. the lien card): give up after this many seconds and show the plain reading
+    llm_ui_timeout_s: float = 20.0
     log_level: str = "INFO"           # DEBUG | INFO | WARNING | ERROR
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-5-5"

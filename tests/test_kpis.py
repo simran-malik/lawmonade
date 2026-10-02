@@ -62,3 +62,17 @@ def test_review_status():
     e = {"value": 1.0, "note": "", "edited_by": "Sam", "edited_at": "x", "clio_value": 22180.0}
     fixed = {k["key"]: k for k in apply_reviews(apply_edits(kpis(SNAP), {"lien": e}), {})}["lien"]
     assert fixed["review"]["status"] == "corrected" and fixed["review"]["by"] == "Sam"
+
+
+def test_amounts_understand_k_and_million():
+    from app.kpis import amounts
+    assert amounts("$100k/$300k") == [100000.0, 300000.0]
+    assert amounts("$1.2M and $2 million") == [1200000.0, 2000000.0]
+    assert amounts("$5 Medicaid, $22,180.00 asserted") == [5.0, 22180.0]
+
+
+def test_limits_without_dollar_sign_are_flagged():
+    from app.kpis import kpis
+    snap = {"source": "clio", "matter": {}, "fields": {"Policy Limits": "Defendant 100/300"}, "expenses": []}
+    cov = {k["key"]: k for k in kpis(snap)}["coverage"]
+    assert cov["amount"] is None and cov["warn"] and "100/300" in cov["why"]

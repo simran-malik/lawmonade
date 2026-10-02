@@ -54,3 +54,23 @@ def test_ai_unavailable_falls_back_to_plain_reading():
 
 def test_fixture_matches_schema():
     LienBreakdown.model_validate(FIXTURE)
+
+
+def test_cut_off_quote_does_not_pass_the_check():
+    cut = {"items": [dict(FIXTURE["items"][0], quote="New York State Medicaid lien, $22", amount=22.0)]}
+    a = analyze(SNAP, fake(cut))
+    assert a["total"] is None and len(a["unchecked"]) == 1
+
+
+def test_screen_call_uses_the_short_time_limit(monkeypatch):
+    import app.llm
+    from app.config import settings
+    seen = {}
+
+    def fake_ask_json(prompt, schema, max_tokens=8000, timeout=None):
+        seen["timeout"] = timeout
+        raise TimeoutError("slow")
+    monkeypatch.setattr(app.llm, "ask_json", fake_ask_json)
+    monkeypatch.setattr(settings, "llm_ui_timeout_s", 7.0)
+    a = analyze(SNAP)
+    assert seen["timeout"] == 7.0 and a["status"] == "failed"

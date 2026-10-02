@@ -71,19 +71,20 @@ def ask(prompt: str, text: str = "", system: str | None = None, max_tokens: int 
     return msg.content[0].text
 
 
-def _ask_json_live(prompt: str, model: type[T], max_tokens: int) -> T:
+def _ask_json_live(prompt: str, model: type[T], max_tokens: int, timeout: float | None = None) -> T:
     if provider() == "gemini":
         from app.gemini import gemini_json
         return gemini_json(prompt, model, max_tokens)
     from app.claude import claude_json  # Claude Structured Outputs: reply always matches `model`
-    return claude_json(prompt, model, max(max_tokens, 16000))
+    return claude_json(prompt, model, max(max_tokens, 16000), timeout)
 
 
-def ask_json(prompt: str, model: type[T], max_tokens: int = 8000) -> T:
-    """Structured answer that always matches `model`. Cached on disk unless --cache off."""
+def ask_json(prompt: str, model: type[T], max_tokens: int = 8000, timeout: float | None = None) -> T:
+    """Structured answer that always matches `model`. Cached on disk unless --cache off.
+    timeout: for calls a person waits on (e.g. settings.llm_ui_timeout_s); None = the 2-minute default."""
     if provider() == "mock":
         return mock_json(model)
-    return llm_cache.cached(prompt, model, lambda: _ask_json_live(prompt, model, max_tokens),
+    return llm_cache.cached(prompt, model, lambda: _ask_json_live(prompt, model, max_tokens, timeout),
                             provider(), model_name())
 
 
