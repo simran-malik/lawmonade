@@ -164,8 +164,7 @@ def money_row(s: dict):
             # The card's frame is this container, so the blue link sits INSIDE the card
             with st.container(key=f"lmcard_{theme.card_class(k)}_{k['key']}"):
                 st.markdown(theme.card_body(k), unsafe_allow_html=True)
-                if st.button(theme.source_link_label(k), key=f"srclink_{k['key']}", type="tertiary",
-                             help="Where this number comes from, and review it"):
+                if st.button(theme.source_link_label(k), key=f"srclink_{k['key']}", type="tertiary"):
                     source_dialog(mid, k)
 
 
@@ -174,7 +173,7 @@ def reviewer() -> str:
     return (ss.get("who") or ss.get("who_dlg") or "").strip()
 
 
-@st.dialog("Where this number comes from", width="large")
+@st.dialog("Where does this number come from?", width="large")
 def source_dialog(mid, k: dict):
     """Pop-up with everything behind one card (it doesn't fit inside the card) and the review buttons."""
     st.markdown(f'<div class="lm-label">{esc(k["label"])}</div><div class="lm-value">{esc(k["value"])}</div>',
