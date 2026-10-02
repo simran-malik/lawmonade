@@ -26,6 +26,19 @@ class ClioError(Exception):
         self.message, self.fix = message, fix
 
 
+class ClioChoice(ClioError):
+    """More than one case matches the search. `choices` lists them so a person picks the right one."""
+
+    def __init__(self, query: str, choices: list[dict]):
+        super().__init__(f"{len(choices)} cases in Clio match \"{query}\".", "Pick the right one below.")
+        self.choices = choices
+
+
+def _choice(m: dict) -> dict:
+    return {"id": m["id"], "number": m.get("display_number", ""), "client": _name(m.get("client")),
+            "description": m.get("description", ""), "status": m.get("status", "")}
+
+
 def _headers():
     if not settings.clio_access_token:
         raise ClioError("Law-monade isn't connected to Clio yet.",
@@ -138,7 +151,7 @@ def _name(x) -> str:
     return (x or {}).get("name", "") if isinstance(x, dict) else ""
 
 
-def load_steps(query: str):
+def load_steps(query: str, matter_id=None):
     st = {}
     base = settings.clio_base
 
@@ -147,8 +160,12 @@ def load_steps(query: str):
                         ["id,display_number,description,status,open_date,statute_of_limitations,"
                          "matter_stage{name},practice_area{name},client{id,name}",
                          "id,display_number,description,status,open_date,statute_of_limitations"])
+        if matter_id is not None:                      # a person already picked one of several matches
+            rows = [r for r in rows if str(r["id"]) == str(matter_id)]
         if not rows:
             raise ClioError(f"No case in Clio matches \"{query}\".", "Check the spelling, or search by client last name.")
+        if len(rows) > 1:                              # never guess: opening the wrong client's case is the worst bug
+            raise ClioChoice(query, [_choice(r) for r in rows])
         m = rows[0]
         cf = _get(f"{base}/api/v4/matters/{m['id']}.json",
                   {"fields": "id,custom_field_values{id,value,field_name}"}).json().get("data", {})

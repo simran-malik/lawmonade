@@ -5,7 +5,9 @@ Never shared: notes, emails, calls, case value, coverage reasoning, strategy. On
 """
 import re
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
+from app.config import settings
 from app.kpis import first_line, is_medical
 from app.snapshot import nice_date
 
@@ -83,19 +85,23 @@ def default_message(provider_name: str, client: str, firm: str) -> str:
 
 
 def payload(draft: dict, chosen: list[str], need_ids: list[str], record_ids: list[str],
-            billed: float | None, reduction: tuple[int, int], message: str, firm: str) -> dict:
-    """The frozen copy the provider will see. Only chosen sections, only ticked items."""
+            billed: float | None, reduction: tuple[int, int], message: str, firm: str,
+            note_ids: list[str] | None = None) -> dict:
+    """The frozen copy the provider will see. Only chosen sections, only ticked items.
+    Data minimization: a task's internal note is included only if its id is in note_ids (opt-in per task),
+    and the billed amount itself is never stored, only the low-high payment range."""
+    note_ids = note_ids or []
     p = {"provider": draft["provider"]["name"], "client": draft["status"]["client"], "firm": firm,
-         "message": message.strip(), "made": datetime.now().isoformat(timespec="minutes"), "sections": chosen}
+         "message": message.strip(), "made": firm_now().isoformat(timespec="minutes"), "sections": chosen}
     if "status" in chosen:
         p["status"] = {k: draft["status"][k] for k in ("active", "stage", "status", "updated")}
     if "needs" in chosen:
-        p["needs"] = [{"what": first_line(t["title"]).split(" - ", 1)[-1], "detail": t.get("text", ""),
+        p["needs"] = [{"what": first_line(t["title"]).split(" - ", 1)[-1],
+                       "detail": t.get("text", "") if str(t["id"]) in note_ids else "",
                        "due": t.get("date")} for t in draft["needs"] if str(t["id"]) in need_ids]
     if "bills" in chosen:
         lo_r, hi_r = reduction
-        p["bills"] = {"billed": billed,
-                      "low": None if billed is None else billed * (1 - hi_r / 100),
+        p["bills"] = {"low": None if billed is None else billed * (1 - hi_r / 100),
                       "high": None if billed is None else billed * (1 - lo_r / 100)}
     if "records" in chosen:
         p["records"] = [{"name": doc_name(d["title"]), "date": d.get("date")} for d in draft["records"]
@@ -105,11 +111,24 @@ def payload(draft: dict, chosen: list[str], need_ids: list[str], record_ids: lis
     return p
 
 
-def overdue(due) -> bool:
+def firm_now() -> datetime:
+    """Now in the firm's time zone (TIMEZONE in .env), not the server's."""
+    return datetime.now(ZoneInfo(settings.timezone))
+
+
+def local_date(value) -> date | None:
+    """The calendar day of a Clio date/time in the firm's time zone ('2026-10-15T06:00:00Z' -> Oct 14 in LA)."""
     try:
-        return datetime.fromisoformat(str(due).replace("Z", "+00:00")).date() < date.today()
+        d = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except (TypeError, ValueError):
-        return False
+        return None
+    return d.astimezone(ZoneInfo(settings.timezone)).date() if d.tzinfo else d.date()
+
+
+def overdue(due, today: date | None = None) -> bool:
+    """True if the due day has passed, both days counted in the firm's time zone."""
+    d = local_date(due)
+    return d is not None and d < (today or firm_now().date())
 
 
 __all__ = ["SECTIONS", "DEFAULT_ON", "providers", "build", "payload", "name_keys", "doc_name", "overdue", "nice_date"]

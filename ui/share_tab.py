@@ -36,7 +36,7 @@ def render(s: dict):
         chosen = [key for key, label in share.SECTIONS.items()
                   if st.checkbox(label, value=key in share.DEFAULT_ON, key=k + key)]
 
-        need_ids, record_ids, billed, reduction = [], [], d["billed"], (20, 40)
+        need_ids, note_ids, record_ids, billed, reduction = [], [], [], d["billed"], (20, 40)
         if "needs" in chosen:
             with st.expander(f"What we need: {len(d['needs'])} open request(s) found for this provider", expanded=bool(d["needs"])):
                 if not d["needs"]:
@@ -44,6 +44,10 @@ def render(s: dict):
                 for t in d["needs"]:
                     if st.checkbox(f'{t["title"]} (due {nice_date(t.get("date"))})', value=True, key=k + "n" + str(t["id"])):
                         need_ids.append(str(t["id"]))
+                        # The task's note is internal by default (it can hold strategy); share it only on purpose
+                        if t.get("text") and st.checkbox("Also share this task's note", value=False,
+                                                         key=k + "nn" + str(t["id"]), help=t["text"]):
+                            note_ids.append(str(t["id"]))
                     st.caption(f'Source: {t["src"]["label"]}')
         if "bills" in chosen:
             with st.expander("Bills and expected payment", expanded=True):
@@ -67,13 +71,15 @@ def render(s: dict):
                                value=share.default_message(prov["name"], s["matter"].get("client", ""), settings.firm_name))
     with right:
         st.markdown('<div class="lm-label">Never shared</div><div class="lm-never">Notes, emails and calls · '
-                    'case value and strategy · other providers\' bills · anything not ticked on the left.</div>',
+                    'case value and strategy · task notes (unless you tick "Also share this task\'s note") · '
+                    'other providers\' bills · anything not ticked on the left.</div>',
                     unsafe_allow_html=True)
         if d["keys"]:
             st.caption("Items are matched to this provider by the name: " + ", ".join(d["keys"]) +
                        ". Untick anything that doesn't belong.")
 
-    p = share.payload(d, chosen, need_ids, record_ids, billed, reduction, message, firm=settings.firm_name)
+    p = share.payload(d, chosen, need_ids, record_ids, billed, reduction, message, firm=settings.firm_name,
+                      note_ids=note_ids)
 
     # ---- 3. preview + approve
     theme.step_head(3, "Check the preview")

@@ -21,15 +21,20 @@ ss = st.session_state
 ss.setdefault("snap", None)
 ss.setdefault("error", None)
 ss.setdefault("query", settings.clio_matter_query)
+ss.setdefault("matter_id", None)    # set when a person picked one of several matching cases
+ss.setdefault("choices", None)
 
 
 # ---------- loading ----------
-def open_from_clio(query: str):
-    from app.clio import ClioError, load_steps
-    ss.error = None
-    state, steps = load_steps(query)
+def open_from_clio(query: str, matter_id=None):
+    from app.clio import ClioChoice, ClioError, load_steps
+    ss.error, ss.choices = None, None
+    state, steps = load_steps(query, matter_id)
     try:
         theme.run_steps(steps, title=f'Opening "{query}" from Clio')
+    except ClioChoice as e:            # several cases match: let the person pick, never guess
+        ss.choices = e.choices
+        return
     except ClioError as e:
         ss.error = (e.message, e.fix)
         use_saved_copy(query)
@@ -41,6 +46,7 @@ def open_from_clio(query: str):
         return
     snapshot.save(state["snapshot"])
     ss.snap = state["snapshot"]
+    ss.matter_id = state["snapshot"]["matter"]["id"]
 
 
 def use_saved_copy(query: str):
@@ -94,12 +100,25 @@ def welcome():
         query = st.text_input("Case or client name", value=settings.clio_matter_query,
                               placeholder="e.g. Sapini", label_visibility="collapsed")
         if st.button("Open case from Clio", type="primary", use_container_width=True):
-            ss.query = query.strip() or settings.clio_matter_query
+            ss.query, ss.matter_id = query.strip() or settings.clio_matter_query, None
             open_from_clio(ss.query)
             st.rerun()
+        if ss.choices:
+            pick_case(ss.choices)
         if st.button("Try the sample case", use_container_width=True,
                      help="Uses the organizers' sample file. Marked as Demo mode."):
             open_sample()
+            st.rerun()
+
+
+def pick_case(choices: list[dict]):
+    """Several Clio cases match the search: show them and open only the one a person picks."""
+    st.markdown(f"**{len(choices)} cases match \"{esc(ss.query)}\". Which one?**")
+    for c in choices:
+        label = " · ".join(x for x in (c["client"], c["number"], c["description"], c["status"]) if x)
+        if st.button(label, key=f"pick_{c['id']}", use_container_width=True):
+            ss.matter_id = c["id"]
+            open_from_clio(ss.query, c["id"])
             st.rerun()
 
 
@@ -219,12 +238,12 @@ def case_screen(s: dict):
                                                       help="Read the latest notes, emails and tasks again")
     with b:
         if st.button("Open another case", use_container_width=True):
-            ss.snap, ss.error = None, None
+            ss.snap, ss.error, ss.matter_id, ss.choices = None, None, None, None
             st.rerun()
     if refresh:   # outside the button column, so the progress box uses the full page width
         _, mid, _ = st.columns([1, 2, 1])
         with mid:
-            open_from_clio(ss.query)
+            open_from_clio(ss.query, ss.matter_id)
         st.rerun()
     if ss.error:
         theme.error_box(*ss.error)
@@ -244,31 +263,10 @@ def case_screen(s: dict):
         share_tab.render(s)
 
 
-def provider_page(token: str):
-    """What a provider sees when they open their link. No Clio access: only the approved, frozen copy."""
-    import json
-
-    from app import store
-    from ui import provider_view
-    st.markdown(f'<div class="lm-bar"><div class="lm-brand">{esc(settings.firm_name)}'
-                f'<small>Secure case update · read-only</small></div>'
-                f'<div><span class="lm-badge">SHARED WITH YOU</span></div></div>', unsafe_allow_html=True)
-    sh = store.get_share(token)
-    if not sh:
-        theme.error_box("This link has expired or was turned off.",
-                        "Contact the law firm and ask for a new link.")
-        return
-    if not ss.get("viewed_" + token):          # count each visit once
-        store.record_view(token, "provider page")
-        ss["viewed_" + token] = True
-    _, mid, _ = st.columns([1, 3, 1])
-    with mid:
-        st.markdown(provider_view.html(json.loads(sh["edited_text"])), unsafe_allow_html=True)
-
-
 share_token = st.query_params.get("share")
-if share_token:
-    provider_page(share_token)
+if share_token:      # providers should use the provider portal (bash run.sh provider); kept here for local testing
+    from ui import provider_view
+    provider_view.page(share_token)
 elif ss.snap:
     case_screen(ss.snap)
 else:

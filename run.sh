@@ -12,7 +12,8 @@ Commands
   check [--slack] [--sms +1NUMBER]   check keys, tools and the Clio connection
   clio [--details]          check the Clio connection + Sapini counts (read-only)
   extract <file.pdf> [--ask "question"]   print a PDF's text, optionally ask the AI about it
-  ui                        dashboard       http://localhost:8501
+  ui                        dashboard       http://localhost:8501   (firm only, keep internal)
+  provider                  provider portal http://localhost:8502   (the only page providers reach)
   api                       API             http://localhost:8000/docs
   config                    show the settings this run would use (secrets hidden)
   up                        start API + dashboard + n8n in the background (logs in logs/)
@@ -30,7 +31,7 @@ Flags (any command; override .env for this run only)
   --ocr-threshold 80        OCR confidence (0-100) below which words count as unclear
   --log-level LEVEL         DEBUG | INFO | WARNING | ERROR (default INFO; logs go to the terminal or logs/)
 
-Ports: API 8000, dashboard 8501, n8n 5678. Stop hack/ first: cd ../hack && bash run.sh stop
+Ports: API 8000, dashboard 8501, provider portal 8502, n8n 5678. Stop hack/ first: cd ../hack && bash run.sh stop
 
 Examples
   bash run.sh ui --llm gemini
@@ -66,7 +67,7 @@ env_val() { grep -E "^$1=" .env 2>/dev/null | head -1 | cut -d= -f2- | tr -d "\"
 N8N_RUN="-p 5678:5678 -e N8N_BLOCK_ENV_ACCESS_IN_NODE=false -e SLACK_WEBHOOK_URL=$(env_val SLACK_WEBHOOK_URL) -v n8n_data:/home/node/.n8n n8nio/n8n"
 
 up() {
-  for p in "${PORT:-8000}" 8501; do
+  for p in "${PORT:-8000}" 8501 8502; do
     port_busy "$p" && die "port $p is already in use. Stop hack/ first: (cd ../hack && bash run.sh stop), or: bash run.sh stop"
   done
   mkdir -p logs
@@ -80,12 +81,14 @@ up() {
   echo "API       -> http://localhost:${PORT:-8000}/docs   (log: logs/api.log)"
   nohup uv run streamlit run ui/dashboard.py --server.port 8501 --server.headless true > logs/ui.log 2>&1 &
   echo "Dashboard -> http://localhost:8501              (log: logs/ui.log)"
+  nohup uv run streamlit run ui/provider_app.py --server.port 8502 --server.headless true > logs/provider.log 2>&1 &
+  echo "Providers -> http://localhost:8502              (log: logs/provider.log)"
   echo "Give it ~10 s, then: bash run.sh status.   Stop everything: bash run.sh stop"
 }
 
 stop() {
   # Stops anything on our ports (also hack/'s screens, since both use the same ports)
-  pkill -f "streamlit run ui/" && echo "stopped dashboard" || echo "dashboard was not running"
+  pkill -f "streamlit run ui/" && echo "stopped dashboard + provider portal" || echo "dashboard was not running"
   pkill -f "uvicorn app.main:app" && echo "stopped API" || echo "API was not running"
   ids=$(docker ps -q --filter ancestor=n8nio/n8n 2>/dev/null || true)
   if [ -n "$ids" ]; then docker stop $ids >/dev/null && echo "stopped n8n (your n8n account and workflows are kept)"; else echo "n8n was not running"; fi
@@ -94,7 +97,7 @@ stop() {
 }
 
 status() {
-  for p in 8000:API 8501:dashboard 5678:n8n; do
+  for p in 8000:API 8501:dashboard 8502:provider-portal 5678:n8n; do
     port=${p%%:*}; name=${p#*:}
     if port_busy "$port"; then echo "UP    $name  http://localhost:$port"; else echo "down  $name"; fi
   done
@@ -127,6 +130,7 @@ case "$cmd" in
   clio)      uv run python scripts/clio_check.py ${PASS[@]+"${PASS[@]}"} ;;
   extract)   uv run python scripts/extract.py ${PASS[@]+"${PASS[@]}"} ;;
   ui)        uv run streamlit run ui/dashboard.py --server.port "${PORT:-8501}" ;;
+  provider)  uv run streamlit run ui/provider_app.py --server.port "${PORT:-8502}" ;;
   api)       uv run uvicorn app.main:app --reload --port "${PORT:-8000}" ;;
   config)    uv run python scripts/show_config.py ;;
   templates) uv run python scripts/make_templates.py ;;

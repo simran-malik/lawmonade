@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     demo_file: Path = ROOT.parent / "Slides & Materials - Shared w- Participants" / "Sapini Case Materials" / "sapini-clio-data.json"
     share_link_days: int = 14
     firm_name: str = "Brightwater & Vance Injury Law"   # fictional demo firm; shown to providers
-    public_url: str = "http://localhost:8501"
+    public_url: str = "http://localhost:8502"    # the PROVIDER PORTAL (bash run.sh provider), never the dashboard
 
     # Email to providers (see app/emailer.py)
     email_from: str = ""                 # e.g. "Smith Law <cases@smithlaw.com>"; empty = the signed-in Gmail account

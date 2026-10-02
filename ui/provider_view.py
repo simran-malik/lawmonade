@@ -5,6 +5,32 @@ from app.snapshot import nice_date
 from ui.theme import esc
 
 
+def page(token: str) -> None:
+    """The provider's page for one share link: only the approved, frozen copy. No Clio access, no case search."""
+    import json
+
+    import streamlit as st
+
+    from app import store
+    from app.config import settings
+    from ui import theme
+    ss = st.session_state
+    st.markdown(f'<div class="lm-bar"><div class="lm-brand">{esc(settings.firm_name)}'
+                f'<small>Secure case update · read-only</small></div>'
+                f'<div><span class="lm-badge">SHARED WITH YOU</span></div></div>', unsafe_allow_html=True)
+    sh = store.get_share(token)
+    if not sh:
+        theme.error_box("This link has expired or was turned off.",
+                        "Contact the law firm and ask for a new link.")
+        return
+    if not ss.get("viewed_" + token):          # count each visit once
+        store.record_view(token, "provider page")
+        ss["viewed_" + token] = True
+    _, mid, _ = st.columns([1, 3, 1])
+    with mid:
+        st.markdown(html(json.loads(sh["edited_text"])), unsafe_allow_html=True)
+
+
 def _usd(x) -> str:
     return "—" if x is None else f"${x:,.0f}"
 
@@ -35,7 +61,7 @@ def html(p: dict) -> str:
 
     if "bills" in p:
         b = p["bills"]
-        if b.get("billed") is None:
+        if b.get("low") is None:
             body = "We don't have a bill amount from your office yet. Please send your itemized bill."
         else:
             body = f'<div class="lm-range">{_usd(b["low"])} – {_usd(b["high"])}</div>'
