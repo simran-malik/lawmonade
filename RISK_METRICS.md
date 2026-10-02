@@ -44,4 +44,17 @@ Cross-stage signals:
 4. Add `risks` to `app/brief.py` output (and therefore GET /matters/{id}/brief); show red/amber/green cards
    with a "why" line + link to the Clio item, next to the money cards.
 5. Read-only: building risks never writes to the DB.
-6. Open question: demo only Litigation risks for Sapini, or show all stages so judges see metrics change with stage.
+6. Decided: demo only Litigation (the Sapini stage) plus the cross-stage signals; other stages added later in
+   `config/risks.yaml` + one function each in `app/risks.py` (`STAGE_SIGNALS`).
+
+## Built (Oct 2 2026)
+- `config/risks.yaml`: `common` thresholds + `stages.litigation` (aliases, signals, thresholds).
+- `app/risks.py: build(snap)` → `{stage, stage_key, set_up, note, signals, top}`; in `brief.build()` as `risks`
+  (so also in GET /matters/{id}/brief), and shown above the money cards ("What could hurt this case").
+- Litigation signals: `hard_deadlines` (any overdue task; a late court/discovery item is red at once; court items due
+  within 7 days are amber), `client_contact` (newest email/call naming the client; Check if none does),
+  `liability` (AI quote + confidence, checked against the field; else "needs review").
+- Every stage: `days_since_activity`, `days_in_stage` (from dated snapshots; shows "N+ days" when every saved copy
+  has the same stage, and never calls that lower bound green).
+- Not yet: other stages; client-contact by sender/receiver (the loader doesn't fetch Clio's `senders`/`receivers`);
+  risks in the digest email.

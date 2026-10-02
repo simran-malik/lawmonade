@@ -79,7 +79,8 @@ Each component can be swapped, can be tested on its own, and is configured from 
 |---|---|---|---|---|
 | `clio.py` loader | matter search → snapshot, in 5 progress steps | sample file, another case system (Filevine, …) | `CLIO_*` | `test_clio_links`, `test_retry` |
 | `snapshot.py` | Clio or sample data → one case shape; latest + dated copies (`SNAPSHOT_KEEP`); find a saved copy; purge | SQLite/Postgres store | `SNAPSHOT_DIR`, `DEMO_FILE` | `test_snapshot_fallback` |
-| `brief.py` | snapshot → cards (+ corrections, review status), lien status, counts; never writes | — | — | `test_brief` |
+| `brief.py` | snapshot → cards (+ corrections, review status), lien status, risks, counts; never writes | — | — | `test_brief` |
+| `risks.py` | snapshot (+ our dated copies) → the top 1-2 risks for the case's stage, red/amber/green, each with a why line and a Clio link. Litigation: overdue/upcoming deadlines, last client contact, liability (AI quote, checked by code). Every stage: days since activity, days in stage. Never writes | — | `config/risks.yaml` (stage names + thresholds per firm) | `test_risks` |
 | `kpis.py` | snapshot → money cards, each with source + Exact/Calculated/Check | — | `config/fields.yaml` (field names per firm) | `test_kpis` |
 | `share.py` + `store.py` | snapshot + attorney choices → frozen share (task notes opt-in, range not billed amount), 24-byte token, expiry; SQLite with numbered migrations, WAL, append-only audit | Postgres; signed links | `SHARE_LINK_DAYS`, `PUBLIC_URL` (provider portal) | `test_share`, `test_store` |
 | `emailer.py` | to, subject, text → sent email (link only, never case details) | SMTP, SendGrid | `EMAIL_*`, `SMTP_*` | — |

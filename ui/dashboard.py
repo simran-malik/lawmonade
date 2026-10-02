@@ -151,7 +151,7 @@ def money_row(s: dict):
     from app import brief
     mid = s["matter"]["id"]
     # Same brief as the API and the daily digest; drawing it never writes to the DB (only the buttons do)
-    ks = brief.build(s, lien_breakdown(s))["cards"]
+    ks = brief.build(s, lien_breakdown(s), risk_report(s))["cards"]
 
     h, who = st.columns([3, 1])
     with h:
@@ -166,6 +166,52 @@ def money_row(s: dict):
                 st.markdown(theme.card_body(k), unsafe_allow_html=True)
                 if st.button(theme.source_link_label(k), key=f"srclink_{k['key']}", type="tertiary"):
                     source_dialog(mid, k)
+
+
+def risk_row(s: dict):
+    """The top 1-2 risks for the case's stage, then the rest (app/risks.py). Read-only: nothing here saves."""
+    rep = risk_report(s)
+    st.markdown("### What could hurt this case")
+    st.markdown(theme.risk_summary(rep), unsafe_allow_html=True)
+    top = rep["top"] or rep["signals"][:2]
+    rest = [r for r in rep["signals"] if r not in top]
+    for col, r in zip(st.columns(max(len(top), 1)), top):
+        with col:
+            risk_card(r)
+    if rest:
+        with st.expander(f"Other checks ({len(rest)})"):
+            for col, r in zip(st.columns(len(rest)), rest):
+                with col:
+                    risk_card(r)
+
+
+def risk_card(r: dict):
+    with st.container(key=f"lmrisk_{r['level']}_{r['key']}"):
+        st.markdown(theme.risk_body(r), unsafe_allow_html=True)
+        if st.button("Where does this come from?", key=f"risklink_{r['key']}", type="tertiary"):
+            risk_dialog(r)
+
+
+@st.dialog("Where does this come from?", width="large")
+def risk_dialog(r: dict):
+    st.markdown(theme.risk_body(r), unsafe_allow_html=True)
+    st.markdown(theme.source_html(r), unsafe_allow_html=True)
+    items = r.get("items") or []
+    if items:
+        st.markdown(f"**What it's based on** ({len(items)})")
+        with st.container(height=min(320, 46 * len(items) + 20)):
+            for it in items:
+                st.markdown(f"- {it['text']}" + (f" · [Open in Clio ↗]({it['url']})" if it.get("url") else ""))
+
+
+def risk_report(s: dict) -> dict:
+    """Risks once per case version (the one AI read is also cached on disk, so reopening is free)."""
+    from app import risks
+    key = f"risks_{s['matter']['id']}_{s.get('fetched_at')}"
+    if key not in ss:
+        with st.spinner("Checking what could hurt this case…"):
+            ss[key] = risks.build(s)
+    return ss[key]
 
 
 def reviewer() -> str:
@@ -293,6 +339,7 @@ def case_screen(s: dict):
     with brief:
         from ui import digest_panel
         digest_panel.render(s, lien_breakdown(s))
+        risk_row(s)
         money_row(s)
         c = snapshot.counts(s)
         st.caption(f"Read from {c['notes']} notes · {c['communications']} emails and calls · {c['tasks']} tasks · "

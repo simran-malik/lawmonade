@@ -1,0 +1,37 @@
+# Case risk signals per stage (see RISK_METRICS.md). Every firm names its stages differently:
+# onboarding a firm = list its stage names under `aliases` (matched without case). No code change needed.
+# Levels: below `amber` = green, from `amber` = amber, from `red` = red (all in days).
+#
+# `common` runs on every case, whatever its stage. Only Litigation is set up for now (the demo case);
+# a case in any other stage still gets the common signals, and the brief says its stage isn't set up yet.
+
+common:
+  days_since_activity:          # newest note, email/call, document, or past calendar entry
+    amber: 30
+    red: 60
+  days_in_stage:                # from our dated snapshots (Clio doesn't store when the stage changed)
+    amber: 120
+    red: 240
+
+stages:
+  litigation:
+    label: Litigation
+    aliases: [Litigation, Suit Filed, Lawsuit Filed, Discovery, Pre-Trial, Trial]
+    signals:
+      hard_deadlines:
+        overdue_amber: 1        # any open task this many days late
+        overdue_red: 14
+        upcoming_days: 7        # a court/discovery item due within this many days -> amber
+        # words that make a task or calendar entry a hard (court/discovery) deadline: overdue at all -> red
+        court_words: [court, hearing, deposition, depo, discovery, interrogator, motion, trial, filing,
+                      file by, deadline, conference, mediation, subpoena, expert disclosure, note of issue,
+                      bill of particulars, demand for, response due, EBT, IME]
+      client_contact:           # days since the last email/call/note that names the client
+        amber: 30
+        red: 60
+      liability:                # AI reads the liability field: still contested or not investigated in litigation?
+        fields: [Liability Assessment, Liability, Liability Notes]
+        min_confidence: 0.7     # below this the AI's answer is shown as "needs review", never as a finding
+    days_in_stage:              # litigation runs long: override the common thresholds
+      amber: 540
+      red: 900

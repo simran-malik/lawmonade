@@ -77,6 +77,7 @@ class Settings(BaseSettings):
 
     data_dir: Path = ROOT / "data"
     fields_file: Path = ROOT / "config" / "fields.yaml"   # Clio custom field names per money card (per firm)
+    risks_file: Path = ROOT / "config" / "risks.yaml"     # risk signals + thresholds per case stage (per firm)
     snapshot_keep: int = 30                               # past copies of each case to keep (for "what changed")
 
 

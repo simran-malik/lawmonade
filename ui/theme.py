@@ -105,6 +105,23 @@ div[class*="st-key-lmcard_needs_review_"] {{ border: 2px solid {AMBER}; backgrou
 div[class*="st-key-lmcard_reviewed_"] {{ border: 2px solid #ABEFC6; background: #F6FEF9; box-shadow: 0 0 0 4px #ECFDF3; }}
 div[class*="st-key-lmcard_reviewed_"] div[class*="st-key-srclink_"] button p {{ color: {GREEN} !important; font-weight: 700; }}
 .lm-card-in {{ display: flex; flex-direction: column; gap: 0.35rem; }}
+/* risk cards: red / amber / review / unknown / green, left border shows the level */
+div[class*="st-key-lmrisk_"] {{ border: 1px solid {LINE}; border-left: 6px solid {LINE}; border-radius: 12px;
+    padding: 0.9rem 1.1rem 0.5rem; background: #fff; gap: 0.35rem; }}
+div[class*="st-key-lmrisk_"] > div {{ flex-shrink: 0; }}
+div[class*="st-key-lmrisk_red_"] {{ border-left-color: {RED}; background: #FEF3F2; }}
+div[class*="st-key-lmrisk_amber_"] {{ border-left-color: {AMBER}; background: #FFFAEB; }}
+div[class*="st-key-lmrisk_review_"] {{ border-left-color: #5925DC; }}
+div[class*="st-key-lmrisk_green_"] {{ border-left-color: {GREEN}; }}
+.lm-risk-lvl {{ display: inline-block; border-radius: 999px; padding: 0.1rem 0.6rem; font-size: 0.8rem; font-weight: 700;
+    color: #fff; background: {MUTED}; width: fit-content; }}
+.lm-risk-lvl.red {{ background: {RED}; }} .lm-risk-lvl.amber {{ background: {AMBER}; }}
+.lm-risk-lvl.review {{ background: #5925DC; }} .lm-risk-lvl.green {{ background: {GREEN}; }}
+.lm-risk-why {{ font-size: 0.98rem; color: {INK}; }}
+div[class*="st-key-risklink_"] button {{ background: none !important; width: auto; border: none !important; box-shadow: none !important;
+    min-height: 0 !important; padding: 0.15rem 0 !important; justify-content: flex-start; }}
+div[class*="st-key-risklink_"] button p {{ font-size: 1rem !important; color: #175CD3 !important; text-decoration: underline;
+    text-underline-offset: 3px; font-weight: 600; }}
 div[class*="st-key-srclink_"] {{ margin-top: 0.2rem; }}
 div[class*="st-key-srclink_"] button {{ background: none !important; width: auto; border: none !important; box-shadow: none !important;
     min-height: 0 !important; padding: 0.15rem 0 !important; color: #175CD3 !important; text-decoration: underline;
@@ -292,6 +309,23 @@ def review_summary(cards: list[dict]) -> str:
         return '<div class="lm-summary done">✓ Every number is checked or reviewed.</div>'
     return (f'<div class="lm-summary todo">⚠ {len(need)} of {len(cards)} numbers need your review: '
             f'{esc(", ".join(need))}. Click “Review” on each card.</div>')
+
+def risk_body(r: dict) -> str:
+    """Inside one risk card (app/risks.py signal): level, label, value, and the why line."""
+    return (f'<div class="lm-card-in"><span class="lm-risk-lvl {esc(r["level"])}">{esc(r["level_words"])}</span>'
+            f'<div class="lm-label">{esc(r["label"])}</div><div class="lm-value">{esc(r["value"])}</div>'
+            + (f'<div class="lm-risk-why">{bold_money(r["why"])}</div>' if r.get("why") else "") + '</div>')
+
+
+def risk_summary(rep: dict) -> str:
+    """One line above the risk cards: the stage, and how many things are at risk."""
+    stage = f'Stage: <b>{esc(rep.get("stage") or "none in Clio")}</b>. '
+    bad = [s for s in rep["signals"] if s["level"] in ("red", "amber")]
+    note = f' <span class="muted">{esc(rep["note"])}</span>' if rep.get("note") else ""
+    if not bad:
+        return f'<div class="lm-summary done">{stage}✓ Nothing flagged right now.{note}</div>'
+    return f'<div class="lm-summary todo">{stage}⚠ {len(bad)} thing{"s" if len(bad) != 1 else ""} to act on.{note}</div>'
+
 
 def empty_state(title: str, text: str):
     st.markdown(f'<div class="lm-empty"><h1>{esc(title)}</h1><div class="lm-rule"></div><p>{esc(text)}</p></div>',
