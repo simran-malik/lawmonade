@@ -2,11 +2,31 @@
 
 Judges: **PI firm owners** (money, clarity) and **Swans engineers** (does it work in a real firm?).
 Rule for every shot: show it working on the real Sapini case, with one text headline saying what it proves.
-Label colors: 🟦 Feature · 🟪 Differentiator · 🟩 Guarantee · 🟨 Money.
 
-No voiceover: the on-screen text tells the story. Each shot gets one **headline** (top of the
-screen, the point being shown) and up to two small **tags** (next to the thing on screen).
-Headlines stay 6-9 words so they can be read in 2-3 seconds; each stays up for the whole shot.
+## How the text looks
+
+The app is white with pale blue, green, amber and purple, so every text box is a **solid, dark,
+saturated color with white bold text** (no transparency, rounded corners, soft shadow). That way
+it never blends into the app.
+
+| Box | Color | Use |
+|---|---|---|
+| **Headline** | Magenta `#C11574` (the app never uses it) | The point being shown, one per shot, 6-9 words |
+| 🟦 Feature tag | Teal `#0E7090` | Small box next to the item |
+| 🟪 Differentiator tag | Purple `#6927DA` | Small box next to the item |
+| 🟩 Guarantee tag | Green `#067647` | Small box next to the item |
+| 🟨 Money tag | Dark amber `#B54708` | Small box next to the item |
+
+All have white text at 4.5:1 contrast or better, readable on a phone.
+
+**Placement:** no fixed spot. Each headline goes in the **emptiest part of that shot** (side
+margins of the wide layout, below short content, or over blank page area), never covering the
+thing being demonstrated or the mouse. Tags sit right beside their item, with a thin line or arrow
+to it if there's any doubt what they point at. If a shot scrolls, the box stays where the screen
+stays empty.
+
+No voiceover: the text tells the story. Each headline stays up for its whole shot (2-3 seconds is
+enough to read it); tags appear when their item is on screen.
 
 Recording tips: 1440×900 browser window, zoom 110%, mouse moves slowly, pause ~2 s on each thing
 being shown, no typing on camera (pre-fill the search box). Silent screen recording is fine; I add a
@@ -16,7 +36,7 @@ quiet music bed only if you want one.
 
 ## Shot list
 
-| Time | On screen (clicks) | Headline (top) | Tags (next to the item) |
+| Time | On screen (clicks) | Headline | Tags (next to the item) |
 |---|---|---|---|
 | **0:00–0:06** | Title card over a blurred Clio matter with 160+ entries | **160+ entries. One hour to catch up. Every case.** | 🟨 $38K–$465K/yr of time back at a 100–300 case firm |
 | **0:06–0:12** | Click **Open case from Clio** → progress steps → **LIVE FROM CLIO · READ-ONLY** badge | **Reads the live case straight from Clio** | 🟩 Read-only: never changes Clio |
