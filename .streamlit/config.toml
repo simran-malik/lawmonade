@@ -1,0 +1,15 @@
+# Lawmonade look: navy + white + one gold accent. Large text for projectors.
+[theme]
+base = "light"
+primaryColor = "#13294B"            # navy: main buttons, links, focus
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F3F5F9"
+textColor = "#0F1B2D"
+font = "sans serif"
+
+[client]
+toolbarMode = "minimal"
+showSidebarNavigation = false
+
+[browser]
+gatherUsageStats = false

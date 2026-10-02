@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     db_path: Path = ROOT / "data" / "lawmonade.db"     # SQLite: shares, share_views, last_opened, audit
     snapshot_dir: Path = ROOT / "data" / "matters"     # JSON: Clio snapshots + cached digests
     share_link_secret: str = ""
+    # Demo mode: the organizers' sample file (sapini-clio-data.json). Not in git.
+    demo_file: Path = ROOT.parent / "Slides & Materials - Shared w- Participants" / "Sapini Case Materials" / "sapini-clio-data.json"
     share_link_days: int = 14
 
     data_dir: Path = ROOT / "data"

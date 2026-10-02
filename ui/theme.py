@@ -1,0 +1,185 @@
+"""Lawmonade look and small building blocks for the screens.
+
+Navy + white + one gold accent. Serif only for headings. Large text for projectors.
+"""
+import html
+import time
+
+import streamlit as st
+
+NAVY, NAVY_2, INK, MUTED, LINE, SOFT = "#13294B", "#1F3A66", "#0F1B2D", "#475467", "#D0D5DD", "#F3F5F9"
+GOLD, GOLD_TEXT = "#C9A227", "#7A5C0F"            # gold for lines/accents; darker gold when used as text
+GREEN, AMBER, RED = "#067647", "#B54708", "#B42318"
+
+CSS = f"""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap');
+html, body, .stApp {{ font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif; color: {INK}; }}
+.stApp {{ font-size: 18px; }}
+.stApp p, .stApp li, .stApp label, .stApp .stMarkdown {{ font-size: 1.05rem; line-height: 1.55; }}
+h1, h2, h3, .lm-serif {{ font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif !important;
+                        color: {NAVY} !important; letter-spacing: -0.01em; }}
+h1 {{ font-size: 2.3rem !important; }} h2 {{ font-size: 1.8rem !important; }} h3 {{ font-size: 1.4rem !important; }}
+#MainMenu, footer, header [data-testid="stToolbar"] {{ visibility: hidden; }}
+.block-container {{ padding-top: 1.2rem; max-width: 1280px; }}
+
+/* buttons: biggest = main action */
+.stButton > button, .stDownloadButton > button {{ min-height: 3rem; font-size: 1.05rem; font-weight: 600;
+    border-radius: 10px; border: 1.5px solid {NAVY}; }}
+.stButton > button[kind="primary"] {{ background: {NAVY}; color: #fff; min-height: 3.6rem; font-size: 1.2rem;
+    box-shadow: inset 0 -3px 0 {GOLD}; }}
+.stButton > button[kind="primary"]:hover {{ background: {NAVY_2}; border-color: {GOLD}; }}
+.stButton > button[kind="secondary"] {{ background: #fff; color: {NAVY}; }}
+.stButton > button:focus-visible {{ outline: 3px solid {GOLD}; outline-offset: 2px; }}
+
+/* tabs */
+.stTabs [data-baseweb="tab"] {{ font-size: 1.1rem; font-weight: 600; padding: 0.6rem 1.1rem; }}
+.stTabs [aria-selected="true"] {{ color: {NAVY}; }}
+.stTabs [data-baseweb="tab-highlight"] {{ background-color: {GOLD}; height: 3px; }}
+
+/* top bar */
+.lm-bar {{ background: {NAVY}; color: #fff; border-radius: 14px; padding: 0.9rem 1.4rem; display: flex;
+    align-items: center; justify-content: space-between; border-bottom: 4px solid {GOLD}; margin-bottom: 1.2rem; }}
+.lm-brand {{ font-family: 'Source Serif 4', Georgia, serif; font-size: 1.7rem; font-weight: 700; letter-spacing: 0.01em; }}
+.lm-brand small {{ font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 400; opacity: 0.85; margin-left: 0.8rem; }}
+.lm-badge {{ display: inline-block; padding: 0.25rem 0.7rem; border-radius: 999px; font-size: 0.85rem; font-weight: 600;
+    border: 1.5px solid {GOLD}; color: {GOLD}; letter-spacing: 0.03em; }}
+.lm-badge.live {{ border-color: #7FD1A8; color: #7FD1A8; }}
+
+/* case header */
+.lm-case {{ border: 1px solid {LINE}; border-left: 6px solid {GOLD}; border-radius: 12px; padding: 1.1rem 1.4rem; margin-bottom: 1rem; }}
+.lm-case h1 {{ margin: 0 0 0.2rem 0; padding: 0; }}
+.lm-case .desc {{ color: {MUTED}; font-size: 1.1rem; }}
+.lm-chips {{ margin-top: 0.7rem; display: flex; flex-wrap: wrap; gap: 0.5rem; }}
+.lm-chip {{ background: {SOFT}; border: 1px solid {LINE}; border-radius: 999px; padding: 0.3rem 0.8rem; font-size: 0.95rem; }}
+.lm-chip b {{ color: {NAVY}; }}
+
+/* cards */
+.lm-card {{ border: 1px solid {LINE}; border-radius: 12px; padding: 1rem 1.15rem; background: #fff; height: 100%;
+    display: flex; flex-direction: column; gap: 0.35rem; }}
+.lm-card.warn {{ border: 2px solid {AMBER}; background: #FFFAEB; }}
+.lm-label {{ text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.8rem; font-weight: 700; color: {MUTED}; }}
+.lm-value {{ font-size: 2rem; font-weight: 700; color: {NAVY}; line-height: 1.15; }}
+.lm-sub {{ color: {INK}; font-size: 0.98rem; }}
+.lm-why {{ color: {AMBER}; font-weight: 600; font-size: 0.95rem; }}
+.lm-src {{ margin-top: auto; padding-top: 0.5rem; border-top: 1px dashed {LINE}; font-size: 0.85rem; color: {MUTED}; }}
+.lm-src b {{ color: {INK}; font-weight: 600; }}
+.lm-pill {{ display: inline-block; border-radius: 999px; padding: 0.1rem 0.55rem; font-size: 0.78rem; font-weight: 700;
+    margin-right: 0.35rem; }}
+.lm-pill.exact {{ background: #ECFDF3; color: {GREEN}; border: 1px solid #ABEFC6; }}
+.lm-pill.calc {{ background: #EEF2F8; color: {NAVY}; border: 1px solid #C7D2E3; }}
+.lm-pill.check {{ background: #FFFAEB; color: {AMBER}; border: 1px solid #FEC84B; }}
+
+/* empty state */
+.lm-empty {{ text-align: center; padding: 2.5rem 1rem 1rem; }}
+.lm-empty h1 {{ font-size: 2.6rem !important; margin-bottom: 0.4rem; }}
+.lm-empty p {{ color: {MUTED}; font-size: 1.2rem !important; max-width: 760px; margin: 0 auto 1.4rem; }}
+.lm-rule {{ width: 72px; height: 4px; background: {GOLD}; margin: 0.6rem auto 1.2rem; border-radius: 2px; }}
+
+/* progress */
+.lm-steps {{ border: 1px solid {LINE}; border-radius: 12px; padding: 1.1rem 1.4rem; max-width: 760px; margin: 1rem auto; }}
+.lm-step {{ display: flex; align-items: center; gap: 0.8rem; padding: 0.35rem 0; font-size: 1.1rem; }}
+.lm-step .ico {{ width: 1.6rem; height: 1.6rem; border-radius: 50%; display: inline-flex; align-items: center;
+    justify-content: center; font-size: 0.9rem; font-weight: 700; flex: none; }}
+.lm-step.done .ico {{ background: {NAVY}; color: #fff; }}
+.lm-step.now .ico {{ border: 3px solid {LINE}; border-top-color: {GOLD}; animation: lmspin 0.9s linear infinite; }}
+.lm-step.todo .ico {{ border: 2px solid {LINE}; }}
+.lm-step.todo {{ color: {MUTED}; }}
+.lm-step .t {{ margin-left: auto; color: {MUTED}; font-variant-numeric: tabular-nums; font-size: 0.95rem; }}
+.lm-fact {{ margin-top: 0.9rem; padding: 0.7rem 0.9rem; background: {SOFT}; border-left: 4px solid {GOLD}; border-radius: 6px;
+    font-size: 1rem; }}
+.lm-fact b {{ color: {GOLD_TEXT}; }}
+@keyframes lmspin {{ to {{ transform: rotate(360deg); }} }}
+
+/* errors */
+.lm-error {{ border: 2px solid {RED}; background: #FEF3F2; border-radius: 12px; padding: 1rem 1.2rem; margin: 1rem 0; }}
+.lm-error .h {{ color: {RED}; font-weight: 700; font-size: 1.15rem; }}
+.lm-error .fix {{ margin-top: 0.35rem; }}
+</style>
+"""
+
+# Short, plain-words facts shown while the user waits (definitions, not statistics).
+FACTS = [
+    ("Lien", "a provider who treats on a lien gets paid from the settlement, not up front."),
+    ("Statute of limitations", "the last day to file the lawsuit. Miss it and the case is usually gone."),
+    ("Specials", "the case's hard costs, such as medical bills and lost wages."),
+    ("Policy limits", "the most an insurance policy will pay, no matter what the case is worth."),
+    ("Contingency fee", "the firm is paid a share of the recovery, and nothing if the case is lost."),
+    ("Demand package", "the letter and records the firm sends the insurer to ask for a settlement."),
+    ("Gap in treatment", "weeks without care that the insurer may use to argue the injury healed."),
+    ("Medical chronology", "a dated list of every visit and finding, built from the medical records."),
+]
+
+
+def apply():
+    st.set_page_config(page_title="Lawmonade", page_icon="⚖️", layout="wide", initial_sidebar_state="collapsed")
+    st.markdown(CSS, unsafe_allow_html=True)
+
+
+def esc(x) -> str:
+    return html.escape(str(x if x is not None else ""))
+
+
+def top_bar(source: str | None):
+    """source: 'sample' -> Demo mode badge, 'clio' -> Live from Clio badge, None -> no badge."""
+    badge = ""
+    if source == "sample":
+        badge = '<span class="lm-badge" title="Using the sample file, not live Clio data">DEMO MODE · SAMPLE DATA</span>'
+    elif source == "clio":
+        badge = '<span class="lm-badge live" title="Reading live from your Clio account (read-only)">LIVE FROM CLIO · READ-ONLY</span>'
+    st.markdown(f'<div class="lm-bar"><div class="lm-brand">Lawmonade<small>Case briefings for your team and your providers</small></div>'
+                f'<div>{badge}</div></div>', unsafe_allow_html=True)
+
+
+def pill(level: str, text: str) -> str:
+    """level: exact | calc | check"""
+    return f'<span class="lm-pill {level}">{esc(text)}</span>'
+
+
+def card(label: str, value: str, sub: str = "", source: str = "", sure: tuple[str, str] = ("exact", "From Clio"),
+         why: str = "", warn: bool = False) -> str:
+    """One number with where it came from and how sure we are. `why` = short reason when unsure."""
+    return (f'<div class="lm-card{" warn" if warn else ""}"><div class="lm-label">{esc(label)}</div>'
+            f'<div class="lm-value">{esc(value)}</div>'
+            + (f'<div class="lm-sub">{esc(sub)}</div>' if sub else "")
+            + (f'<div class="lm-why">⚠ {esc(why)}</div>' if why else "")
+            + f'<div class="lm-src">{pill(*sure)}<b>Source:</b> {esc(source)}</div></div>')
+
+
+def empty_state(title: str, text: str):
+    st.markdown(f'<div class="lm-empty"><h1>{esc(title)}</h1><div class="lm-rule"></div><p>{esc(text)}</p></div>',
+                unsafe_allow_html=True)
+
+
+def error_box(message: str, fix: str):
+    st.markdown(f'<div class="lm-error"><div class="h">{esc(message)}</div><div class="fix"><b>What to do:</b> {esc(fix)}</div></div>',
+                unsafe_allow_html=True)
+
+
+def _steps_html(labels, current, times, fact_i, title):
+    rows = []
+    for i, label in enumerate(labels):
+        state = "done" if i < current else "now" if i == current else "todo"
+        ico = "✓" if state == "done" else ""
+        t = f"{times[i]:.1f} s" if i < len(times) else ("working…" if state == "now" else "")
+        rows.append(f'<div class="lm-step {state}"><span class="ico">{ico}</span><span>{esc(label)}</span><span class="t">{t}</span></div>')
+    term, meaning = FACTS[fact_i % len(FACTS)]
+    total = f' · {sum(times):.1f} s' if current >= len(labels) else ""
+    return (f'<div class="lm-steps"><div class="lm-label">{esc(title)}{total}</div>{"".join(rows)}'
+            f'<div class="lm-fact"><b>Good to know · {esc(term)}:</b> {esc(meaning)}</div></div>')
+
+
+def run_steps(steps: list[tuple[str, callable]], title: str = "Getting your case ready") -> list[float]:
+    """Run each step and show progress: done ✓ with time taken, current one spinning, the rest waiting.
+    Errors from a step are raised after the box shows where it stopped."""
+    box = st.empty()
+    labels = [s[0] for s in steps]
+    times: list[float] = []
+    fact_i = int(time.time()) % len(FACTS)
+    for i, (_, fn) in enumerate(steps):
+        box.markdown(_steps_html(labels, i, times, fact_i + i, title), unsafe_allow_html=True)
+        t0 = time.monotonic()
+        fn()
+        times.append(time.monotonic() - t0)
+    box.markdown(_steps_html(labels, len(labels), times, fact_i, title + " · Done"), unsafe_allow_html=True)
+    return times
