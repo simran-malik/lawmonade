@@ -118,7 +118,7 @@ flowchart LR
 | `digest_runs` (SQLite) | One row per case per firm day (scheduled) or per click (manual); status per channel | Unique `run_key` + `BEGIN IMMEDIATE`: an n8n retry or a double click never sends twice. A failed run resumes and redoes only the channel that didn't go out. A crashed run is taken over after 10 min. |
 | Case risks | "What could hurt this case" in the email (top 1-2 from `risks.py`, then other checks); same top risks in the digest bar on the Case brief tab | Slack adds red risk names only, and only when it pings anyway (risks never ping on their own); the button sends the risks shown on screen |
 | `deadlines.py` | Overdue / long overdue (>90 days) / due today-tomorrow / next 14 days / no due date; SOL | Firm-time-zone days (UTC evening is still "today" in LA); only open tasks; past events never "overdue"; cancelled entries skipped; Clio's SOL reference object isn't treated as a date |
-| Contact to text | For each overdue task: the contact it names, else the client, else the assigned staff member; `sms:` link with an editable draft | A person sends it (nothing auto-texted); no amounts in drafts; "no phone in Clio" shown instead of a dead link |
+| Contact to text (digest email) | For each overdue task: the contact it names, else the client, else the assigned staff member; `sms:` link with an editable draft | A person sends it (nothing auto-texted); no amounts in drafts; "no phone in Clio" shown instead of a dead link |
 | `summary.py` (option C) | Facts line by code + 3-5 AI sentences from Clio fields, notes, emails, open tasks | Each sentence must quote its source word for word and may not add a number, date or month that isn't in the quote; otherwise dropped. Nothing passes / AI down / slow -> Clio's own case-summary words. Cached by input, so an unchanged case costs $0. |
 | Recipients | Responsible attorney in Clio, else `DIGEST_RECIPIENTS` | Addresses outside `FIRM_EMAIL_DOMAINS` dropped; none left -> recorded as `no_recipients` + Slack ops warning |
 | Stale data | Clio down -> newest saved copy with a red "data is N h old" banner | Older than `DIGEST_MAX_AGE_H` (48 h): sends "digest unavailable" instead of old numbers |
@@ -142,6 +142,19 @@ with a link to the event. Code: `app/gcal.py`, `ui/timeline.py`. Setup once: `ba
 | Errors | "Add all" keeps going past one bad item | Sign-in expired or wrong calendar id: stops after the first item and says how to fix it. |
 
 Not copied later: if a date changes in Clio, the Google event keeps the old one (revisit: update events whose Clio item changed).
+
+## Overdue and due soon: email and text
+
+The **Everything, by date** tab opens with **Overdue** (open tasks past due, most overdue first) and **Due today or
+tomorrow** (open tasks + calendar entries), then everything else month by month. Each of those rows has
+**Add to calendar**, **Email** and **Text**. Code: `ui/timeline.py`, `app/deadlines.py: responsible()`.
+
+| Part | What it does | Edge cases handled |
+|---|---|---|
+| Who to reach | The task's assignee in Clio (a firm user or a contact); no assignee, or a calendar entry -> the case's responsible attorney | Emails and phones come from Clio users and contacts (read-only GETs); missing permission or no phone/email -> the box is empty and says so, the person types one |
+| Email | Gmail or SMTP via `emailer.py`, with an editable subject and draft | Failed sends shown with the fix; sent and failed both logged in the audit log with the actor |
+| Text | Twilio via `integrations/sms.py`, editable draft (640 characters max) | Button off until `TWILIO_*` is in `.env`; bad numbers refused before sending; trial accounts send Twilio's fixed template and the screen says so; only the last 4 digits are logged |
+| Sending | Always a person pressing the button | Nothing is emailed or texted automatically; cancelled and finished entries are never "overdue" |
 
 ## Reliability
 

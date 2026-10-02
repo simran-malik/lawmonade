@@ -10,10 +10,11 @@ Updated: Oct 2, 2026.
 | Step | What you show | What to say |
 |---|---|---|
 | 1 | **Open case from Clio** → progress steps with times | "Reads the whole Sapini file live from Clio. Read-only: the Clio app has no write permission." |
-| 2 | **Case brief** money cards | "Every number shows its source and how sure we are. Amber = a person should check it." |
-| 3 | **Everything, by date** | "All 160+ entries in one searchable list. Every line shows where it came from." |
+| 2 | **Case brief**: risks on top, then money cards → **Where does this come from?** → **Looks good** | "Top risks for this stage first. Every number shows its source and how sure we are. Amber = a person should check it; approved cards turn green with who reviewed them." |
+| 3 | **Everything, by date** → **Overdue** → **Email** / **Text** / **Add to calendar** | "All 160+ entries in one searchable list. Every line shows where it came from. Overdue items name who to chase, with one-click email or text." |
 | 4 | **Share with a provider** → tick → preview → approve → email | "The attorney picks exactly what the provider sees, previews it, approves it, and only a secure link is emailed." |
 | 5 | Open the link in a new tab → back to **Already shared** | "The provider sees a read-only page. The attorney sees that it was opened." |
+| 6 | **Case brief** → **Send digest now** → the email, then the Slack ping | "Every weekday morning each attorney gets this digest. Slack pings only when something is urgent, with no client details." |
 
 ---
 
@@ -62,6 +63,10 @@ Limits of this count:
 | Free-text numbers | Coverage and liens are read out of free-text fields | Marked "Check" in amber, with the reason |
 | Sample data | Sample contacts have fake `.test` emails; sample documents don't name providers | Demo redirect for email; live Clio data has per-provider documents |
 | Email | Gmail sign-in needs a one-time browser approval; Google may say "unverified app" | One-time setup before the demo |
+| Texting | A Twilio trial account sends only Twilio's fixed template, not our draft | The screen says so; a paid account sends the draft |
+| Case risks | Only the Litigation stage has stage-specific risks; client contact is matched by name (Clio senders/receivers not loaded) | Sapini is in Litigation; other stages = YAML + one function each |
+| Google Calendar | Events keep the old date if the Clio date changes | Each row shows ✓ On calendar with a link to check |
+| Reviewer name | No login: the optional "Reviewing as" name is what the audit log saves | Real sign-in (SSO) is in the production path |
 
 ## 6. Future scope
 
@@ -121,3 +126,6 @@ Limits of this count:
 | 14:00 | Email every weekday; Slack only when something is urgent, with counts only | Silence would look like "it broke"; Slack is noisy and less private |
 | 14:00 | Overdue items name who to contact (the contact the task names, else the client, else the assignee) with a one-tap text draft a person sends | Twilio trial can't send free text, and auto-texting clients/providers is risky |
 | 14:00 | Money cards: the source link sits inside the card and opens a pop-up; it reads "Review" when a person must check the number and "Reviewed by <name>" after approval | Long source lists didn't fit under the cards; reviews need a name |
+| 15:00 | Tasks and calendar entries go on Google Calendar one by one or all at once, with a fixed event id per item | A double click or retry never makes a second event |
+| 15:17 | "Everything, by date" opens with Overdue and Due today/tomorrow; each row can email or text (Twilio) the task's assignee in Clio, else the responsible attorney; a person presses send, every send is logged | Deadlines first; the person who owns the task is the one to chase |
+| 15:25 | "Send digest now" no longer asks for a name; the optional "Reviewing as" name goes in the audit log | The name box made the button reset without sending |
