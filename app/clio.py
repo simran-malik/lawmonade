@@ -9,6 +9,7 @@ from urllib.parse import quote
 
 import requests
 
+from app import retry
 from app.config import settings
 from app.log import get, stage
 from app.snapshot import nice_date, now_iso, src
@@ -33,8 +34,21 @@ def _headers():
 
 
 def _get(url: str, params: dict | None = None) -> requests.Response:
-    try:
+    """One GET to Clio. Retries timeouts, 429 and 5xx (GETs are safe to repeat); plain-words errors otherwise."""
+    def once() -> requests.Response:
         r = requests.get(url, params=params, headers=_headers(), timeout=30)
+        t = retry.from_status(r.status_code, r.headers)
+        if t:
+            raise t
+        return r
+
+    try:
+        r = retry.run(once, safe_to_repeat=True, what="clio GET", to_transient=retry.from_requests_error)
+    except retry.Transient as t:
+        if t.status == 429:
+            raise ClioError("Clio asked us to slow down.", "Wait a minute, then try again.") from None
+        raise ClioError("Clio isn't responding properly right now.",
+                        "Try again in a minute. You can also open the last saved copy or the sample case.") from None
     except requests.RequestException:
         raise ClioError("We couldn't reach Clio.",
                         "Check your internet connection, then try again. You can also try the sample case.") from None
@@ -44,8 +58,6 @@ def _get(url: str, params: dict | None = None) -> requests.Response:
     if r.status_code == 403:
         raise ClioError("Law-monade isn't allowed to read part of this case.",
                         "In the Clio developer portal, give the app Read access to everything listed in SETUP.md.")
-    if r.status_code == 429:
-        raise ClioError("Clio asked us to slow down.", "Wait a minute, then try again.")
     return r
 
 

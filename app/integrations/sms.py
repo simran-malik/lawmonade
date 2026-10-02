@@ -13,8 +13,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from app import retry
 from app.config import settings
-from app.log import get
+from app.log import get, stage
 
 LOG = get("sms")
 
@@ -41,9 +42,15 @@ def send_sms(to: str, body: str) -> dict:
     data = urllib.parse.urlencode({"To": to, "From": sender, "Body": template or body}).encode()
     auth = base64.b64encode(f"{sid}:{token}".encode()).decode()
     req = urllib.request.Request(url, data=data, headers={"Authorization": f"Basic {auth}"})
-    try:
+
+    def once() -> dict:
         with urllib.request.urlopen(req, timeout=15) as r:
-            out = json.loads(r.read())
+            return json.loads(r.read())
+
+    try:
+        # Not safe to repeat after a timeout (the text may have gone out): retry connection errors, 429, 503 only.
+        with stage("send.sms", LOG):
+            out = retry.run(once, safe_to_repeat=False, what="twilio send", to_transient=retry.from_urllib_error)
         out["intended_body"] = body
         out["sent_template"] = template or None
         return out

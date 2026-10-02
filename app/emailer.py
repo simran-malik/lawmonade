@@ -10,6 +10,7 @@ import base64
 import smtplib
 from email.message import EmailMessage
 
+from app import retry
 from app.config import ROOT, settings
 from app.log import get, stage
 
@@ -82,7 +83,11 @@ def send(to: str, subject: str, text: str, html: str | None = None) -> dict:
                 s.send_message(msg)
         elif m == "gmail":
             raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-            _gmail_service().users().messages().send(userId="me", body={"raw": raw}).execute()
+            req = _gmail_service().users().messages().send(userId="me", body={"raw": raw})
+            # Not safe to repeat after a timeout (it may have been sent): retry connection errors, 429, 503 only.
+            with stage("send.email", LOG) as info:
+                info["via"] = "gmail"
+                retry.run(req.execute, safe_to_repeat=False, what="gmail send", to_transient=retry.from_google_error)
         else:
             raise EmailError("Email isn't set up yet.", "In Terminal run: bash run.sh gmail  (one-time Google sign-in).")
     except EmailError:

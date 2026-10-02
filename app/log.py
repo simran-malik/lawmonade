@@ -24,6 +24,7 @@ _MASKS: list[tuple[re.Pattern, str]] = [
     (re.compile(r"sk-ant-[A-Za-z0-9_\-]+"), "sk-ant-***"),                       # Anthropic key
     (re.compile(r"AIza[0-9A-Za-z_\-]{20,}"), "AIza***"),                          # Google API key
     (re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+/\-]+=*"), "Bearer ***"),            # OAuth tokens
+    (re.compile(r"(?i)basic\s+[A-Za-z0-9+/]{8,}=*"), "Basic ***"),               # Twilio-style basic auth
     (re.compile(r"hooks\.slack\.com/services/[A-Za-z0-9/]+"), "hooks.slack.com/services/***"),
     (re.compile(r"(?i)\b(access_token|refresh_token|token|share|secret|password|api_key|auth_token)"
                 r"([=:]\s*)([^&\s,'\"]+)"), r"\1\2***"),                         # key=value / key: value
