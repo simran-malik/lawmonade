@@ -87,7 +87,7 @@ In code: `from app.gemini import gemini_json, gemini_text, gemini_image`.
 1. Go to **console.cloud.google.com**. Top bar: project picker > **New project** > name `hackathon` > Create. Make sure it is selected.
 2. **APIs & Services > Library**. Search and **Enable** each: Google Calendar API, Gmail API, Google Drive API, Google Sheets API, Google Docs API.
 3. **Google Auth Platform** (older name: OAuth consent screen) > **Get started**:
-   app name `Lawmonade`, your email, audience **External**, your email as contact > Create.
+   app name `Law-monade`, your email, audience **External**, your email as contact > Create.
    (Tip: use the same project as your Gemini key from step 1b, so everything lives in one place.)
 4. **Audience > Test users > Add users**: add your Gmail.
 5. **Clients > Create client** > type **Desktop app** > name `python` > Create > **Download JSON**.
@@ -104,7 +104,7 @@ In code: `from app.gemini import gemini_json, gemini_text, gemini_image`.
 
 ## 4. Slack webhook 🧑
 1. If you have no workspace: **slack.com > Get started** > make a free workspace. Make a channel `#docket`.
-2. Go to **api.slack.com/apps > Create New App > From scratch** > name `Lawmonade`, pick your workspace.
+2. Go to **api.slack.com/apps > Create New App > From scratch** > name `Law-monade`, pick your workspace.
 3. **Incoming Webhooks** > turn **On** > **Add New Webhook to Workspace** > pick `#docket` > Allow.
 4. Copy the webhook URL (starts with `https://hooks.slack.com/`) into `.env` as `SLACK_WEBHOOK_URL`.
 5. Test: `bash run.sh check --slack`. A message should appear in `#docket`.

@@ -1,4 +1,4 @@
-# Lawmonade
+# Law-monade
 
 Built at the Swans Applied AI Hackathon (Law-Di-Gras, San Diego, Oct 2, 2026).
 

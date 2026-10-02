@@ -6,7 +6,7 @@ from fastapi import FastAPI, UploadFile
 
 from app.pdf import read_pdf
 
-app = FastAPI(title="Lawmonade API")
+app = FastAPI(title="Law-monade API")
 
 
 @app.get("/health")

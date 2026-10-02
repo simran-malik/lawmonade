@@ -22,7 +22,7 @@ class ClioError(Exception):
 
 def _headers():
     if not settings.clio_access_token:
-        raise ClioError("Lawmonade isn't connected to Clio yet.",
+        raise ClioError("Law-monade isn't connected to Clio yet.",
                         "Add your Clio access token to the .env file (see SETUP.md), then try again.")
     return {"Authorization": f"Bearer {settings.clio_access_token}"}
 
@@ -37,7 +37,7 @@ def _get(url: str, params: dict | None = None) -> requests.Response:
         raise ClioError("Your Clio sign-in has expired.",
                         "Get a new access token (REQUIREMENTS.md, section 8, steps 5-6) and put it in .env.")
     if r.status_code == 403:
-        raise ClioError("Lawmonade isn't allowed to read part of this case.",
+        raise ClioError("Law-monade isn't allowed to read part of this case.",
                         "In the Clio developer portal, give the app Read access to everything listed in SETUP.md.")
     if r.status_code == 429:
         raise ClioError("Clio asked us to slow down.", "Wait a minute, then try again.")

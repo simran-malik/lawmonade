@@ -1,4 +1,4 @@
-# Lawmonade look: navy + white + one gold accent. Large text for projectors.
+# Law-monade look: navy + white + one gold accent. Large text for projectors.
 [theme]
 base = "light"
 primaryColor = "#13294B"            # navy: main buttons, links, focus

@@ -1,4 +1,4 @@
-"""Lawmonade look and small building blocks for the screens.
+"""Law-monade look and small building blocks for the screens.
 
 Navy + white + one gold accent. Serif only for headings. Large text for projectors.
 """
@@ -111,8 +111,13 @@ FACTS = [
 ]
 
 
+def firm_name() -> str:
+    from app.config import settings
+    return settings.firm_name
+
+
 def apply():
-    st.set_page_config(page_title="Lawmonade", page_icon="⚖️", layout="wide", initial_sidebar_state="collapsed")
+    st.set_page_config(page_title="Law-monade", page_icon="⚖️", layout="wide", initial_sidebar_state="collapsed")
     st.markdown(CSS, unsafe_allow_html=True)
     st.markdown(CSS_MORE, unsafe_allow_html=True)
 
@@ -128,7 +133,7 @@ def top_bar(source: str | None):
         badge = '<span class="lm-badge" title="Using the sample file, not live Clio data">DEMO MODE · SAMPLE DATA</span>'
     elif source == "clio":
         badge = '<span class="lm-badge live" title="Reading live from your Clio account (read-only)">LIVE FROM CLIO · READ-ONLY</span>'
-    st.markdown(f'<div class="lm-bar"><div class="lm-brand">Lawmonade<small>Case briefings for your team and your providers</small></div>'
+    st.markdown(f'<div class="lm-bar"><div class="lm-brand">Law-monade<small>Case briefings · {esc(firm_name())}</small></div>'
                 f'<div>{badge}</div></div>', unsafe_allow_html=True)
 
 

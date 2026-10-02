@@ -1,4 +1,4 @@
-# Lawmonade: setup steps
+# Law-monade: setup steps
 
 Do these once, in order, in **Terminal on your Mac**. About 10 minutes.
 

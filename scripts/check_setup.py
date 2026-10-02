@@ -57,7 +57,7 @@ check("Share link secret in .env", bool(settings.share_link_secret),
 if "--slack" in sys.argv:
     try:
         from app.integrations.slack import notify
-        check("Slack message sent", notify("Lawmonade test message: Slack works."), "check SLACK_WEBHOOK_URL")
+        check("Slack message sent", notify("Law-monade test message: Slack works."), "check SLACK_WEBHOOK_URL")
     except Exception as e:
         check("Slack message sent", False, str(e))
 
@@ -65,7 +65,7 @@ if "--sms" in sys.argv:
     to = sys.argv[sys.argv.index("--sms") + 1] if len(sys.argv) > sys.argv.index("--sms") + 1 else ""
     try:
         from app.integrations.sms import send_sms
-        r = send_sms(to, "Lawmonade test text: Twilio works.")
+        r = send_sms(to, "Law-monade test text: Twilio works.")
         check(f"Text sent to {to}", r.get("status") not in ("not_sent", "failed", None), r.get("reason") or str(r))
     except Exception as e:
         check("Text sent", False, f"{e}. Use: bash run.sh check --sms +1YOURNUMBER")

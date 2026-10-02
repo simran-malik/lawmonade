@@ -1,4 +1,4 @@
-# Lawmonade: demo log
+# Law-monade: demo log
 
 Notes for the 90-second video, the 4-minute pitch and the "anything the judges should know" form field.
 Updated: Oct 2, 2026.
@@ -95,3 +95,4 @@ Limits of this count:
 | 10:12 | Claude (`claude-sonnet-5-5`) as the AI; Gemini off | The Gemini key was rejected; Claude passed the check |
 | 10:41 | The provider never sees the billed amount, only a payment range | The attorney's request: keep negotiation room |
 | 11:02 | The email carries only a secure link, never case details | Less exposure if an email is forwarded or misdirected |
+| 11:10 | App name shown as **Law-monade**; demo firm is the fictional **Brightwater & Vance Injury Law** (`FIRM_NAME` in `.env`) | Clear branding; no real firm's name used |

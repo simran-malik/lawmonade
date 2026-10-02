@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     # Demo mode: the organizers' sample file (sapini-clio-data.json). Not in git.
     demo_file: Path = ROOT.parent / "Slides & Materials - Shared w- Participants" / "Sapini Case Materials" / "sapini-clio-data.json"
     share_link_days: int = 14
-    firm_name: str = "Your law firm"                    # shown to providers
+    firm_name: str = "Brightwater & Vance Injury Law"   # fictional demo firm; shown to providers
     public_url: str = "http://localhost:8501"
 
     # Email to providers (see app/emailer.py)

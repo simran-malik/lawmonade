@@ -1,4 +1,4 @@
-"""Lawmonade dashboard. Run: bash run.sh ui  ->  http://localhost:8501
+"""Law-monade dashboard. Run: bash run.sh ui  ->  http://localhost:8501
 
 Flow (3 clicks or less): Open the case -> read the brief -> (later) share with a provider.
 """
@@ -70,7 +70,7 @@ def ago(iso: str) -> str:
 def welcome():
     theme.top_bar(None)
     theme.empty_state("Get up to speed on any case in two minutes",
-                      "Lawmonade reads the whole case file in Clio and shows what matters: what it's worth, "
+                      "Law-monade reads the whole case file in Clio and shows what matters: what it's worth, "
                       "what's overdue, and what changed. Nothing in Clio is ever changed.")
     if ss.error:
         theme.error_box(*ss.error)
