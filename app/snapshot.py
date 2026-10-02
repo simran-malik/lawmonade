@@ -5,7 +5,7 @@ snapshot = {
   "source": "clio" | "sample",  "fetched_at": ISO time,
   "matter":  {id, number, description, status, stage, practice_area, open_date, sol_date, client, url},
   "fields":  {custom field name: value},
-  "contacts": [{id, name, role}],
+  "contacts": [{id, name, role, email}],
   "notes" | "communications" | "tasks" | "calendar" | "expenses" | "documents": [item, ...]
 }
 Every item has "src": {"where": "Clio" | "Sample file", "kind": "Note", "id": ..., "label": "Note · May 7, 2023 · Intake summary"}
@@ -81,10 +81,12 @@ def from_sample_file(path: str | Path) -> dict:
     d = json.loads(Path(path).read_text())
     W = "Sample file"
     m = d["matter"]["body"]
-    names = {}
+    names, emails = {}, {}
     for c in d["contacts"]["items"]:
         b = c["body"]
         names[c["ref"]] = (b.get("name") or " ".join(x for x in (b.get("first_name"), b.get("last_name")) if x))
+        em = b.get("email_addresses") or []
+        emails[c["ref"]] = next((e["address"] for e in em if e.get("default_email")), em[0]["address"] if em else "")
     client_ref = _ph(m.get("client", {}).get("id"))[1]
 
     snap = {
@@ -100,8 +102,9 @@ def from_sample_file(path: str | Path) -> dict:
     }
     for i, r in enumerate(d["relationships"]["items"], 1):
         b = r["body"]
-        snap["contacts"].append({"id": f"R{i}", "name": names.get(_ph(b["contact"]["id"])[1], ""),
-                                 "role": b.get("description", "")})
+        ref = _ph(b["contact"]["id"])[1]
+        snap["contacts"].append({"id": f"R{i}", "name": names.get(ref, ""), "role": b.get("description", ""),
+                                 "email": emails.get(ref, "")})
     for i, it in enumerate(d["notes"]["items"], 1):
         b = it["body"]
         snap["notes"].append({"id": f"N{i}", "date": b.get("date"), "title": b.get("subject", ""),

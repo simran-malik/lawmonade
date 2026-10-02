@@ -18,10 +18,10 @@ therapy rehabilitation radiology imaging diagnostic neurology interventional adv
 CLOSED_STAGES = re.compile(r"closed|disburs|settled", re.I)
 
 SECTIONS = {
-    "status": "Case status (is the case still active?)",
-    "needs": "What we need from your office",
-    "bills": "Your bills: expected payment range",
-    "records": "Records we have from you",
+    "status": "Case status",
+    "needs": "What we need from their office",
+    "bills": "Their bills: expected payment range",
+    "records": "Records we have from them",
     "coverage": "Insurance coverage behind the case",
 }
 DEFAULT_ON = ["status", "needs", "bills", "records"]
@@ -73,6 +73,13 @@ def build(snap: dict, provider: dict) -> dict:
         "needs": needs, "bills": bills, "billed": billed if bills else None,
         "records": records, "coverage": first_line(cov_text), "coverage_field": cov_field,
     }
+
+
+def default_message(provider_name: str, client: str, firm: str) -> str:
+    return (f"Hello {provider_name},\n\n"
+            f"Here is an update on our client {client or 'your patient'}'s case: where it stands and what we need "
+            f"from your office right now.\n\n"
+            f"Thank you for your care of our client. Please reply to this email with any questions.\n\n{firm}")
 
 
 def payload(draft: dict, chosen: list[str], need_ids: list[str], record_ids: list[str],

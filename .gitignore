@@ -2,6 +2,7 @@
 .env
 credentials.json
 token.json
+token_gmail.json
 
 # local data (case data never goes to git)
 logs/

@@ -18,6 +18,7 @@ Commands
   up                        start API + dashboard + n8n in the background (logs in logs/)
   stop [--docker]           stop everything (add --docker to also quit Docker Desktop)
   status                    show what is running
+  gmail                     one-time Google sign-in so Lawmonade can send email
   templates                 remake the Word templates
   n8n                       start n8n in this terminal
 
@@ -121,6 +122,7 @@ case "$cmd" in
   api)       uv run uvicorn app.main:app --reload --port "${PORT:-8000}" ;;
   config)    uv run python scripts/show_config.py ;;
   templates) uv run python scripts/make_templates.py ;;
+  gmail)     uv run python -m app.emailer ;;
   n8n)       docker rm -f n8n >/dev/null 2>&1 || true; docker run -it --rm --name n8n $N8N_RUN ;;
   up)        up ;;
   stop)      stop ${PASS[@]+"${PASS[@]}"} ;;

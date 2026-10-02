@@ -63,8 +63,8 @@ def render(s: dict):
                 for r in d["records"]:
                     if st.checkbox(share.doc_name(r["title"]), value=True, key=k + "r" + str(r["id"])):
                         record_ids.append(str(r["id"]))
-        message = st.text_area("Message to the provider (optional)", key=k + "msg",
-                               placeholder="e.g. Thank you for treating Mr. Sapini. We still need the right shoulder surgery date.")
+        message = st.text_area("Message to the provider (you can edit it)", key=k + "msg", height=190,
+                               value=share.default_message(prov["name"], s["matter"].get("client", ""), settings.firm_name))
     with right:
         st.markdown('<div class="lm-label">Never shared</div><div class="lm-never">Notes, emails and calls · '
                     'case value and strategy · other providers\' bills · anything not ticked on the left.</div>',
@@ -87,12 +87,13 @@ def render(s: dict):
     if not chosen:
         st.caption("Tick at least one section to share.")
 
-    if ss.get("last_link"):
-        sh = store.get_share(ss["last_link"])
-        if sh:
-            st.success(f'Link ready for {sh["provider_name"]}. It works until {nice_date(sh["expires_at"])}. '
-                       "Copy it and send it to the provider:")
-            st.code(f'{settings.public_url}/?share={ss["last_link"]}', language=None)
+    sh = store.get_share(ss["last_link"]) if ss.get("last_link") else None
+    if sh and sh["provider_id"] == str(prov["id"]):
+        link = f'{settings.public_url}/?share={ss["last_link"]}'
+        expires = nice_date(sh["expires_at"])
+        st.success(f'Secure link ready for {sh["provider_name"]}. It works until {expires}.')
+        st.code(link, language=None)
+        send_by_email(prov, json.loads(sh["edited_text"]), link, expires, ss["last_link"], s)
 
     # ---- already shared
     rows = store.shares_for_matter(mid)
@@ -107,3 +108,42 @@ def render(s: dict):
             if not r["revoked"] and c3.button("Turn off", key="rv" + r["token"], help="The link stops working right away"):
                 store.revoke_share(r["token"])
                 st.rerun()
+
+
+def send_by_email(prov: dict, p: dict, link: str, expires: str, token: str, s: dict):
+    """Step 4: email the approved update. The person presses Send; nothing goes out on its own."""
+    from app import emailer
+    ss = st.session_state
+    theme.step_head(4, "Send it by email")
+    clio_email = prov.get("email", "")
+    where = "Clio" if s["source"] == "clio" else "the sample file"
+    c1, c2 = st.columns([3, 2])
+    with c1:
+        to = st.text_input("To", value=clio_email, key="em_to_" + token,
+                           placeholder="No email in Clio for this provider: type one")
+        st.caption(f"Email from {where}." if clio_email else f"{where.capitalize()} has no email for this provider.")
+        subject = st.text_input("Subject", key="em_sub_" + token,
+                                value=f"Case update: {s['matter'].get('client') or s['matter'].get('description')}")
+    with c2:
+        st.markdown(f'<div class="lm-label">Sent from</div><div class="lm-never">{esc(emailer.sender())}</div>',
+                    unsafe_allow_html=True)
+        if settings.email_demo_redirect:
+            st.markdown(f'<span class="lm-pill check">DEMO</span> All emails go to <b>{esc(settings.email_demo_redirect)}</b> '
+                        f'instead of the provider.', unsafe_allow_html=True)
+        if emailer.mode() == "none":
+            st.markdown('<span class="lm-pill check">SETUP NEEDED</span> Run <code>bash run.sh gmail</code> once.',
+                        unsafe_allow_html=True)
+
+    sent_key = "em_sent_" + token
+    if st.button("Send email", type="primary", use_container_width=True, key="em_btn_" + token,
+                 disabled=bool(ss.get(sent_key))):
+        try:
+            r = emailer.send(to, subject, provider_view.email_text(p, link, expires), provider_view.email_html(p, link, expires))
+            store.log("email_sent", token, {"to": r["to"], "intended": r["intended"], "via": r["via"], "subject": subject})
+            ss[sent_key] = r
+        except emailer.EmailError as e:
+            theme.error_box(e.message, e.fix)
+    if ss.get(sent_key):
+        r = ss[sent_key]
+        note = f" (demo: meant for {r['intended']})" if r["to"] != r["intended"] else ""
+        st.success(f"Email sent to {r['to']}{note}.")

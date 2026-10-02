@@ -41,7 +41,15 @@ class Settings(BaseSettings):
     demo_file: Path = ROOT.parent / "Slides & Materials - Shared w- Participants" / "Sapini Case Materials" / "sapini-clio-data.json"
     share_link_days: int = 14
     firm_name: str = "Your law firm"                    # shown to providers
-    public_url: str = "http://localhost:8501"           # base of share links sent to providers
+    public_url: str = "http://localhost:8501"
+
+    # Email to providers (see app/emailer.py)
+    email_from: str = ""                 # e.g. "Smith Law <cases@smithlaw.com>"; empty = the signed-in Gmail account
+    email_demo_redirect: str = ""        # demo safety: send every email here instead
+    smtp_host: str = ""                  # leave empty to use Gmail sign-in (bash run.sh gmail)
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""           # base of share links sent to providers
 
     data_dir: Path = ROOT / "data"
 

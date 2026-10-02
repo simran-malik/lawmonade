@@ -63,6 +63,25 @@ def _get_all(path: str, params: dict, field_options: list[str]) -> list[dict]:
     raise ClioError(f"Clio didn't accept our request for {path}.", "This is a bug on our side. Try the sample case for now.")
 
 
+def contact_email(contact_id) -> str:
+    """The contact's main email in Clio, or "" if it has none."""
+    if not contact_id:
+        return ""
+    url = f"{settings.clio_base}/api/v4/contacts/{contact_id}.json"
+    for fields in ("id,primary_email_address", "id,email_addresses{address,primary}"):
+        r = _get(url, {"fields": fields})
+        if r.status_code == 400:
+            continue
+        if not r.ok:
+            return ""
+        d = r.json().get("data", {})
+        if d.get("primary_email_address"):
+            return d["primary_email_address"]
+        em = d.get("email_addresses") or []
+        return next((e["address"] for e in em if e.get("primary")), em[0]["address"] if em else "")
+    return ""
+
+
 def _name(x) -> str:
     return (x or {}).get("name", "") if isinstance(x, dict) else ""
 
@@ -135,9 +154,12 @@ def load_steps(query: str):
                             "src": src(W, "Document", d["id"], f"Document · {d.get('name', '')}")}
                            for d in _get_all("documents.json", {"matter_id": mid},
                                              ["id,name,received_at,created_at,parent{name}", "id,name,created_at"])]
-        st["contacts"] = [{"id": r["id"], "name": _name(r.get("contact")), "role": r.get("description", "")}
-                          for r in _get_all("relationships.json", {"matter_id": mid},
-                                            ["id,description,contact{id,name}", "id,description"])]
+        people = []
+        for r in _get_all("relationships.json", {"matter_id": mid}, ["id,description,contact{id,name}", "id,description"]):
+            c = r.get("contact") or {}
+            people.append({"id": r["id"], "contact_id": c.get("id"), "name": _name(c),
+                           "role": r.get("description", ""), "email": contact_email(c.get("id"))})
+        st["contacts"] = people
 
     def assemble():
         st["snapshot"] = {"source": "clio", "fetched_at": now_iso(),

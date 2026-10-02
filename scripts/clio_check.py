@@ -77,10 +77,22 @@ def get_all(path, params):
 
 def show_details(mid):
     """List the items behind the 3 counts that can differ (read-only)."""
-    print("\n===== RELATED CONTACTS =====")
-    for r in get_all("relationships.json",
-                     {"matter_id": mid, "fields": "id,description,contact{id,name}"}):
-        print(f"  {(r.get('contact') or {}).get('name')}  |  {r.get('description')}")
+    print("\n===== RELATED CONTACTS (with email from Clio) =====")
+    with_email = 0
+    rels = get_all("relationships.json", {"matter_id": mid, "fields": "id,description,contact{id,name}"})
+    for r in rels:
+        c = r.get("contact") or {}
+        email = ""
+        if c.get("id"):
+            try:
+                d = get(f"contacts/{c['id']}.json", {"fields": "id,primary_email_address"})["data"]
+                email = d.get("primary_email_address") or ""
+            except requests.HTTPError:
+                d = get(f"contacts/{c['id']}.json", {"fields": "id,email_addresses{address}"})["data"]
+                email = ", ".join(e["address"] for e in d.get("email_addresses") or [])
+        with_email += bool(email)
+        print(f"  {c.get('name')}  |  {r.get('description')}  |  email: {email or 'NONE'}")
+    print(f"  -> {with_email} of {len(rels)} have an email in Clio")
 
     print("\n===== EXPENSES (activities type=ExpenseEntry) =====")
     for a in get_all("activities.json", {"matter_id": mid, "type": "ExpenseEntry",
