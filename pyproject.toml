@@ -1,0 +1,41 @@
+[project]
+name = "lawmonade"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    # Clio API
+    "requests>=2.31",
+    # AI
+    "anthropic>=0.40",
+    "google-genai>=1.0",
+    # API + UI
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "python-multipart>=0.0.9",
+    "streamlit>=1.38",
+    "pandas>=2.2",
+    # settings + data shapes
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "pyyaml>=6.0",
+    "python-dateutil>=2.9",
+    # PDF + OCR + text matching
+    "pymupdf>=1.24",
+    "pytesseract>=0.3.10",
+    "pillow>=10.0",
+    "rapidfuzz>=3.9",
+    # Word templates
+    "docxtpl>=0.18",
+    # calendar
+    "icalendar>=5.0",
+    "google-api-python-client>=2.130",
+    "google-auth-oauthlib>=1.2",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0", "reportlab>=4.0"]
+mcp = ["mcp>=1.2"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

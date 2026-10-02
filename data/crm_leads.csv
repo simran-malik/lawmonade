@@ -1,0 +1,11 @@
+lead_id,created_at,name,phone,email,source,accident_type,accident_date,injury,treated_by_doctor,at_fault_insurer,police_report,status,notes
+L-1001,2026-09-28 21:14,Maria Lopez,+16195550101,maria.lopez@example.com,Google Ads,Car crash (rear-ended),2026-09-26,Neck and back pain,Yes - ER,Harborline Casualty (fictional),Yes,Signed,Retainer signed 9/29
+L-1002,2026-09-29 08:02,James Carter,+16195550102,james.carter@example.com,Referral,Slip and fall (grocery store),2026-09-20,Broken wrist,Yes - urgent care,Unknown,No,Signed,Store incident report requested
+L-1003,2026-09-29 23:47,Priya Nair,+16195550103,priya.nair@example.com,Billboard,Rideshare passenger,2026-09-15,Concussion,Yes - ER,Westside Rideshare insurer,Yes,Signed,Pre-litigation
+L-1004,2026-09-30 06:30,Daniel Kim,+16195550104,daniel.kim@example.com,Website form,Car crash (T-bone),2026-09-29,Shoulder pain,No,Unknown,Yes,New,Called at night - no answer yet
+L-1005,2026-09-30 11:05,Ana Ruiz,+16195550105,ana.ruiz@example.com,Facebook,Dog bite,2026-09-27,Bite wound on leg,Yes - urgent care,Homeowner insurance (unknown),No,New,Owner known to client
+L-1006,2026-09-30 14:22,Tom Becker,+16195550106,tom.becker@example.com,Google Ads,Car crash (single car),2026-09-25,None reported,No,None,No,New,Client may be at fault
+L-1007,2026-09-30 19:40,Grace Liu,+16195550107,grace.liu@example.com,TV ad,Truck accident,2026-09-30,Back injury,Yes - ER,Commercial trucking insurer,Yes,New,High value - call first
+L-1008,2026-10-01 07:15,Omar Haddad,+16195550108,omar.haddad@example.com,Referral,Workplace fall,2026-08-02,Knee injury,Yes,Employer (workers comp),No,New,Likely workers comp - may refer out
+L-1009,2026-10-01 09:50,Lisa Park,+16195550109,lisa.park@example.com,Website form,Car crash (rear-ended),2024-08-15,Whiplash,Yes,Unknown,Yes,New,Accident over 2 years ago - check deadline
+L-1010,2026-10-01 12:30,Kevin Moore,+16195550110,kevin.moore@example.com,Google Ads,Pedestrian hit by car,2026-09-30,Broken leg,Yes - hospital admitted,Driver's auto insurer,Yes,Contacted,Left voicemail 12:45

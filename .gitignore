@@ -1,0 +1,22 @@
+# secrets: never commit these
+.env
+credentials.json
+token.json
+
+# local data (case data never goes to git)
+logs/
+data/*.db
+data/*.db-*
+data/matters/*
+!data/matters/.gitkeep
+data/inbox/*
+!data/inbox/.gitkeep
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# mac
+.DS_Store
