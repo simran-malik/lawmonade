@@ -57,7 +57,10 @@ die() { echo "Error: $1"; echo "See: bash run.sh help"; exit 1; }
 
 port_busy() { lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
 
-N8N_RUN="-p 5678:5678 -v n8n_data:/home/node/.n8n n8nio/n8n"   # n8n data (account, workflows) lives in the n8n_data volume
+env_val() { grep -E "^$1=" .env 2>/dev/null | head -1 | cut -d= -f2- | tr -d "\"'"; }
+# n8n data (account, workflows) lives in the n8n_data volume.
+# The Slack webhook is passed in from .env, never saved in the workflow JSON (workflows use $env.SLACK_WEBHOOK_URL).
+N8N_RUN="-p 5678:5678 -e N8N_BLOCK_ENV_ACCESS_IN_NODE=false -e SLACK_WEBHOOK_URL=$(env_val SLACK_WEBHOOK_URL) -v n8n_data:/home/node/.n8n n8nio/n8n"
 
 up() {
   for p in "${PORT:-8000}" 8501; do
