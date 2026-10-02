@@ -10,6 +10,7 @@ from typing import TypeVar
 
 from pydantic import BaseModel, ValidationError
 
+from app import usage
 from app.config import settings
 from app.jsonutil import parse_json  # noqa: F401  (kept here so old imports work)
 
@@ -51,6 +52,14 @@ def _config(json_mode: bool = False, max_tokens: int = 8000):
     return types.GenerateContentConfig(**kw)
 
 
+def _used(r):
+    """Log token use for one Gemini reply (thinking tokens count as output) and pass the reply on."""
+    m = getattr(r, "usage_metadata", None)
+    out = (getattr(m, "candidates_token_count", 0) or 0) + (getattr(m, "thoughts_token_count", 0) or 0)
+    usage.record("gemini", settings.gemini_model, getattr(m, "prompt_token_count", 0) or 0, out)
+    return r
+
+
 def _text(r) -> str:
     if not r.text:
         reason = getattr((getattr(r, "candidates", None) or [None])[0], "finish_reason", "unknown")
@@ -61,7 +70,7 @@ def _text(r) -> str:
 def gemini_text(prompt: str, max_tokens: int = 4000) -> str:
     r = _client().models.generate_content(model=settings.gemini_model, contents=prompt,
                                           config=_config(max_tokens=max_tokens))
-    return _text(r)
+    return _text(_used(r))
 
 
 def gemini_image(png: bytes, prompt: str, max_tokens: int = 4000) -> str:
@@ -72,19 +81,19 @@ def gemini_image(png: bytes, prompt: str, max_tokens: int = 4000) -> str:
         contents=[types.Part.from_bytes(data=png, mime_type="image/png"), prompt],
         config=_config(max_tokens=max_tokens),
     )
-    return _text(r)
+    return _text(_used(r))
 
 
 def gemini_json(prompt: str, model: type[T], max_tokens: int = 8000) -> T:
     schema = json.dumps(model.model_json_schema())
     full = f"{prompt}\n\nReply with JSON only. It must match this JSON schema:\n{schema}"
     client = _client()
-    text = _text(client.models.generate_content(model=settings.gemini_model, contents=full,
-                                                config=_config(True, max_tokens)))
+    text = _text(_used(client.models.generate_content(model=settings.gemini_model, contents=full,
+                                                config=_config(True, max_tokens))))
     try:
         return parse_json(text, model)
     except (ValidationError, json.JSONDecodeError) as e:   # one retry with the error shown
         fix = f"{full}\n\nYour last answer was invalid:\n{e}\nReturn corrected JSON only."
-        text = _text(client.models.generate_content(model=settings.gemini_model, contents=fix,
-                                                    config=_config(True, max_tokens)))
+        text = _text(_used(client.models.generate_content(model=settings.gemini_model, contents=fix,
+                                                    config=_config(True, max_tokens))))
         return parse_json(text, model)

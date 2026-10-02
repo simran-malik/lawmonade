@@ -23,7 +23,8 @@ Commands
   n8n                       start n8n in this terminal
 
 Flags (any command; override .env for this run only)
-  --llm anthropic|gemini    which AI to use
+  --llm anthropic|gemini|mock   which AI to use (mock = saved answers, no key or Wi-Fi)
+  --cache on|off|only       saved AI answers: on = reuse + save, off = always ask, only = offline demo
   --model NAME              model for that AI (e.g. gemini-2.5-pro)
   --port N                  port for ui or api
   --ocr-threshold 80        OCR confidence (0-100) below which words count as unclear
@@ -34,6 +35,7 @@ Ports: API 8000, dashboard 8501, n8n 5678. Stop hack/ first: cd ../hack && bash 
 Examples
   bash run.sh ui --llm gemini
   bash run.sh ui --port 8502
+  bash run.sh ui --cache only            (offline demo: only saved AI answers)
   bash run.sh extract data/samples/insurer_letter_nair.pdf --ask "List every date"
 TXT
 }
@@ -103,7 +105,8 @@ cmd="${1:-help}"; [ $# -gt 0 ] && shift
 PASS=(); MODEL=""; PORT=""
 while [ $# -gt 0 ]; do
   case "$1" in
-    --llm)    case "$2" in anthropic|gemini) export LLM_PROVIDER="$2" ;; *) die "--llm must be anthropic or gemini" ;; esac; shift 2 ;;
+    --llm)    case "$2" in anthropic|gemini|mock) export LLM_PROVIDER="$2" ;; *) die "--llm must be anthropic, gemini or mock" ;; esac; shift 2 ;;
+    --cache)  case "$2" in on|off|only) export LLM_CACHE="$2" ;; *) die "--cache must be on, off or only" ;; esac; shift 2 ;;
     --model)  MODEL="$2"; shift 2 ;;
     --port)   PORT="$2"; shift 2 ;;
     --ocr-threshold) export OCR_MIN_CONF="$2"; shift 2 ;;
@@ -115,7 +118,7 @@ if [ -n "$MODEL" ]; then   # --model goes to whichever AI is in use
   P="${LLM_PROVIDER:-$(grep -E '^LLM_PROVIDER=' .env 2>/dev/null | cut -d= -f2)}"
   if [ "$P" = gemini ]; then export GEMINI_MODEL="$MODEL"; else export ANTHROPIC_MODEL="$MODEL"; fi
 fi
-[ -n "${LLM_PROVIDER:-}$MODEL" ] && echo "This run: LLM=${LLM_PROVIDER:-from .env} ${MODEL:+model=$MODEL}"
+[ -n "${LLM_PROVIDER:-}${LLM_CACHE:-}$MODEL" ] && echo "This run: LLM=${LLM_PROVIDER:-from .env} cache=${LLM_CACHE:-from .env} ${MODEL:+model=$MODEL}"
 
 case "$cmd" in
   setup)     setup ;;

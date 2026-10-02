@@ -8,6 +8,7 @@ from typing import TypeVar
 
 from pydantic import BaseModel
 
+from app import usage
 from app.config import settings
 from app.log import get, stage
 
@@ -45,6 +46,8 @@ def claude_json(prompt: str, model: type[T], max_tokens: int = 16000) -> T:
                 output_format=model,
             )
             info.update(stop=r.stop_reason)
+        u = getattr(r, "usage", None)
+        usage.record("anthropic", settings.anthropic_model, getattr(u, "input_tokens", 0), getattr(u, "output_tokens", 0))
     except anthropic.APITimeoutError:
         raise RuntimeError(f"Claude took longer than {TIMEOUT_S} s and was stopped. "
                            "Try again, or use --llm mock for the demo.") from None
