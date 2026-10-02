@@ -46,7 +46,15 @@ def _entry(it: dict, matter_url: str) -> str:
     else:
         body = (f'<div class="x">{esc(text[:cut])}</div>'
                 f'<details><summary>Read the rest</summary><div class="x">{esc(text[cut:].strip())}</div></details>')
-    link = f' · <a href="{esc(matter_url)}" target="_blank">Open in Clio ↗</a>' if matter_url else ""
+    url, hint = it["src"].get("url"), it["src"].get("hint")
+    if url and hint:
+        place = "Calendar" if it["kind"] == "Calendar" else "Activities"
+        link = (f' · <a href="{esc(url)}" target="_blank">Open {place} in Clio ↗</a>'
+                f' <span class="lm-hint">then search “{esc(hint)}”</span>')
+    elif url:
+        link = f' · <a href="{esc(url)}" target="_blank">Open in Clio ↗</a>'
+    else:
+        link = f' · <a href="{esc(matter_url)}" target="_blank">Open case in Clio ↗</a>' if matter_url else ""
     kind_cls = esc(it["kind"].split()[0])
     return (f'<div class="lm-item"><div class="d">{esc(nice_date(it.get("date")) or "No date")}</div><div>'
             f'<div class="h"><span class="lm-kind {kind_cls}">{esc(it["kind"])}</span>{esc(it.get("title") or "(no title)")}{late}</div>'

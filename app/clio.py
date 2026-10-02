@@ -4,6 +4,9 @@ load_steps(query) -> (state, [(step label, function), ...])
     The screen runs the steps one by one so it can show progress.
     When all have run, state["snapshot"] holds the case in our shape (see app/snapshot.py).
 """
+import json
+from urllib.parse import quote
+
 import requests
 
 from app.config import settings
@@ -61,6 +64,40 @@ def _get_all(path: str, params: dict, field_options: list[str]) -> list[dict]:
             nxt = data.get("meta", {}).get("paging", {}).get("next")
         return rows
     raise ClioError(f"Clio didn't accept our request for {path}.", "This is a bug on our side. Try the sample case for now.")
+
+
+# ---------- links into Clio's own web app ----------
+# Checked by hand in Clio Manage (Oct 2026):
+#   notes / communications / tasks tabs accept ?query={"value": "..."} and fill their search box
+#   tasks?taskId=<id> opens that task;  documents/<id>/details opens that document
+#   calendar and activities tabs have no search in the address, so we link the tab and say what to look for
+def _search(text: str) -> str:
+    words = " ".join(str(text or "").split())[:80].rsplit(" ", 1)[0] if len(str(text or "")) > 80 else " ".join(str(text or "").split())
+    return quote(json.dumps({"value": words}, separators=(",", ":")), safe=":,")
+
+
+def item_link(kind: str, matter_id, item_id, title: str) -> tuple[str, str]:
+    """(url, hint). hint = what to type in Clio's search box when the address can't do it."""
+    base = f"{settings.clio_base}/nc/#/matters/{matter_id}"
+    if kind == "Note":
+        return f"{base}/notes?query={_search(title)}", ""
+    if kind in ("Email", "Phone call"):
+        return f"{base}/communications?query={_search(title)}", ""
+    if kind == "Task":
+        return f"{base}/tasks?taskId={item_id}", ""
+    if kind == "Document":
+        return f"{settings.clio_base}/nc/#/documents/{item_id}/details", ""
+    if kind == "Calendar":
+        return f"{base}/calendar", title
+    if kind == "Expense":
+        return f"{base}/activities", title
+    return base, ""
+
+
+def _with_link(item: dict, matter_id) -> dict:
+    url, hint = item_link(item["src"]["kind"], matter_id, item["id"], item.get("title", ""))
+    item["src"]["url"], item["src"]["hint"] = url, hint
+    return item
 
 
 def contact_email(contact_id) -> str:
@@ -162,6 +199,9 @@ def load_steps(query: str):
         st["contacts"] = people
 
     def assemble():
+        mid = st["matter"]["id"]
+        for k in ("notes", "communications", "tasks", "calendar", "expenses", "documents"):
+            st[k] = [_with_link(it, mid) for it in st.get(k, [])]
         st["snapshot"] = {"source": "clio", "fetched_at": now_iso(),
                           **{k: st.get(k, []) for k in ("notes", "communications", "tasks", "calendar",
                                                         "expenses", "documents", "contacts")},

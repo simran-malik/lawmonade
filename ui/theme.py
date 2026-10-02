@@ -211,6 +211,7 @@ CSS_MORE = f"""
 .lm-kind.Expense {{ background: #ECFDF3; border-color: #ABEFC6; color: {GREEN}; }}
 .lm-late {{ color: {RED}; font-weight: 700; font-size: 0.85rem; margin-left: 0.4rem; }}
 .lm-srcline {{ font-size: 0.85rem; color: {MUTED}; margin-top: 0.3rem; }}
+.lm-hint {{ color: {GOLD_TEXT}; font-weight: 600; }}
 
 .lm-stepnum {{ display: inline-flex; width: 2rem; height: 2rem; border-radius: 50%; background: {NAVY}; color: #fff;
     align-items: center; justify-content: center; font-weight: 700; margin-right: 0.6rem; border: 2px solid {GOLD}; }}
