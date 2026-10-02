@@ -170,7 +170,10 @@ def money_row(s: dict):
 
 def reviewer() -> str:
     """The name saved with an approval: "Reviewing as" on the page, or the name typed in the pop-up."""
-    return (ss.get("who") or ss.get("who_dlg") or "").strip()
+    name = (ss.get("who") or ss.get("who_dlg") or ss.get("_reviewer") or "").strip()
+    if name:
+        ss["_reviewer"] = name          # kept after the pop-up closes (its text box is then forgotten)
+    return name
 
 
 @st.dialog("Where does this number come from?", width="large")
@@ -201,16 +204,20 @@ def review_buttons(mid, k: dict):
     A review needs a name: it is shown on the card ("Reviewed by Sam") and kept in the audit log."""
     from app import store
     key, status = k["key"], k["review"]["status"]
-    if not reviewer() and status in ("needs_review", "approved") and not k.get("edited"):
+    if not (ss.get("who") or ss.get("_reviewer") or "").strip():
+        # Never disable the button while the name is being typed: the first click would only save the name
+        # (Streamlit commits a text box when it loses focus) and the approval would silently not happen.
         st.text_input("Your name (saved with your review)", key="who_dlg", placeholder="e.g. Sam Lee")
     who = reviewer()
     seen = (ss.snap or {}).get("fetched_at", "")     # which copy of the case the person looked at
     if status == "needs_review" and not k.get("edited"):
         a, b = st.columns(2)
-        if a.button("✓ Looks good", key=f"ok_{key}", type="primary", use_container_width=True, disabled=not who,
-                    help=None if who else "Type your name first"):
-            store.set_card_review(mid, key, "approved", k["amount"], who, snapshot=seen)
-            st.rerun()
+        if a.button("✓ Looks good", key=f"ok_{key}", type="primary", use_container_width=True):
+            if not who:
+                st.error("Type your name first, then click Looks good.")
+            else:
+                store.set_card_review(mid, key, "approved", k["amount"], who, snapshot=seen)
+                st.rerun()
         if b.button("Something wrong?", key=f"bad_{key}", use_container_width=True):
             ss[f"fix_{key}"] = True
     elif status == "approved":
