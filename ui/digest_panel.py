@@ -1,7 +1,7 @@
 """Daily digest bar on the Case brief tab: when the last digest went out, a preview, and "Send digest now".
 
 The button sends exactly what is on screen (this copy of the case), through the same code as the n8n schedule
-(app.digest.run), so the email's numbers always match the cards below. Nothing is sent from the preview.
+(app.digest.run), so the email's numbers and risks always match the cards below. Nothing is sent from the preview.
 """
 import streamlit as st
 import streamlit.components.v1 as components
@@ -34,7 +34,22 @@ def last_line(mid) -> str:
             + (f'<br><span class="muted">{esc(r["error"])}</span>' if r.get("error") and r["status"] != "sent" else ""))
 
 
-def render(s: dict, lien_analysis: dict):
+RISK_CLASS = {"red": "lm-bad", "amber": "lm-meh", "review": "lm-meh", "unknown": "muted", "green": "lm-ok"}
+
+
+def risks_line(rep: dict | None) -> str:
+    """What today's digest flags (the same top 1-2 risks as the cards below)."""
+    if not rep:
+        return ""
+    top = rep["top"]
+    if not top:
+        return '<br>Risks in the digest: <span class="lm-ok">nothing flagged</span>'
+    return "<br>Risks in the digest: " + " · ".join(
+        f'<span class="{RISK_CLASS[r["level"]]}">{esc(r["level_words"])}</span> {esc(r["label"])}: <b>{esc(r["value"])}</b>'
+        for r in top)
+
+
+def render(s: dict, lien_analysis: dict, risk_report: dict | None = None):
     mid = s["matter"]["id"]
     rc = digest.recipients(s)
     to = ", ".join(rc["to"]) or "nobody yet"
@@ -48,19 +63,20 @@ def render(s: dict, lien_analysis: dict):
     a, b, c = st.columns([5, 1.2, 1.4])
     with a:
         st.markdown(f'<div class="lm-digest"><b>Daily digest</b> <span class="muted">· email every weekday morning, '
-                    f'Slack only for urgent items · goes to {esc(to)}</span>{warn}{dropped}<br>{last_line(mid)}</div>',
+                    f'Slack only for urgent items · goes to {esc(to)}</span>{warn}{dropped}<br>{last_line(mid)}'
+                    f'{risks_line(risk_report)}</div>',
                     unsafe_allow_html=True)
     with b:
         if st.button("Preview digest", key="digest_preview", use_container_width=True,
                      help="See the email and the Slack message. Nothing is sent."):
-            preview_dialog(s, lien_analysis)
+            preview_dialog(s, lien_analysis, risk_report)
     with c:
         if st.button("Send digest now", key="digest_send", type="primary", use_container_width=True,
                      help="Send today's digest for this case now (same as the morning schedule)"):
-            send_dialog(s, lien_analysis)
+            send_dialog(s, lien_analysis, risk_report)
 
 
-def _preview(s: dict, lien_analysis: dict) -> dict:
+def _preview(s: dict, lien_analysis: dict, risk_report: dict | None = None) -> dict:
     """Built once per copy of the case (the AI summary is cached on disk too)."""
     mid = s["matter"]["id"]
     reviews = hash(repr(sorted(store.card_reviews(mid).items())) + repr(sorted(store.card_edits(mid).items())))
@@ -68,7 +84,7 @@ def _preview(s: dict, lien_analysis: dict) -> dict:
     if key not in ss:
         with st.spinner("Writing the summary (AI, then checked against Clio)…"):
             ss[key] = digest.run(s["matter"]["id"], "manual", snap=s, dry_run=True, lien_analysis=lien_analysis,
-                                 timeout=settings.llm_ui_timeout_s)
+                                 timeout=settings.llm_ui_timeout_s, risk_report=risk_report)
     return ss[key]
 
 
@@ -90,12 +106,12 @@ def _show(p: dict):
 
 
 @st.dialog("Daily digest preview", width="large")
-def preview_dialog(s: dict, lien_analysis: dict):
-    _show(_preview(s, lien_analysis))
+def preview_dialog(s: dict, lien_analysis: dict, risk_report: dict | None = None):
+    _show(_preview(s, lien_analysis, risk_report))
 
 
 @st.dialog("Send today's digest", width="large")
-def send_dialog(s: dict, lien_analysis: dict):
+def send_dialog(s: dict, lien_analysis: dict, risk_report: dict | None = None):
     mid = s["matter"]["id"]
     who = (ss.get("who") or ss.get("who_dlg") or "").strip()
     res_key = f"digest_result_{mid}"
@@ -109,7 +125,7 @@ def send_dialog(s: dict, lien_analysis: dict):
     if not who:
         st.text_input("Your name (saved with the send)", key="who_dlg", placeholder="e.g. Sam Lee")
         who = (ss.get("who_dlg") or "").strip()
-    p = _preview(s, lien_analysis)
+    p = _preview(s, lien_analysis, risk_report)
     if p["status"] == "preview":
         urgent = bool(p["slack"]["text"])
         st.markdown(f"Email to **{esc(', '.join(p['email']['to']) or 'nobody')}**"
@@ -127,7 +143,7 @@ def send_dialog(s: dict, lien_analysis: dict):
         try:
             with st.spinner("Sending…"):
                 r = digest.run(mid, "manual", actor=who, snap=s, lien_analysis=lien_analysis, force=force,
-                               email_only=email_only, timeout=settings.llm_ui_timeout_s)
+                               email_only=email_only, timeout=settings.llm_ui_timeout_s, risk_report=risk_report)
         finally:
             ss["digest_busy"] = False
         if r["status"] == "cooldown":

@@ -7,8 +7,8 @@ run(matter_id, trigger="scheduled" | "manual", actor="", snap=None, dry_run=Fals
   2. Get the case: `snap` from the dashboard (exactly what the person is looking at), else a fresh read from Clio,
      else the newest saved copy WITH its age. If that copy is older than DIGEST_MAX_AGE_H, we send a short
      "digest unavailable" note instead of old numbers (silence or stale numbers would both mislead).
-  3. build(): the numbers come from app.brief.build (the same function as the Case brief tab, so they always
-     match), plus deadlines (app.deadlines), the checked summary (app.summary) and what changed since the last
+  3. build(): the numbers and the case risks come from app.brief.build (the same function as the Case brief tab,
+     so they always match), plus deadlines (app.deadlines), the checked summary (app.summary) and what changed since the last
      digest (dated snapshots).
   4. Send: email always (to the responsible attorney in Clio, else DIGEST_RECIPIENTS, only allowed domains);
      Slack only if urgent, with counts only (no names, amounts or medical details). Each channel's result is
@@ -139,10 +139,24 @@ def review_text(card: dict) -> str:
     return "Checked by code"
 
 
+def _risk(r: dict) -> dict:
+    return {k: r.get(k) for k in ("key", "label", "level", "level_words", "value", "why", "scope")} | \
+        {"url": (r.get("link") or {}).get("url", "")}
+
+
+def risk_part(rep: dict) -> dict:
+    """The case risks (app/risks.py) as the digest shows them: the top 1-2, then the other checks."""
+    top = [_risk(r) for r in rep["top"]]
+    keys = {r["key"] for r in top}
+    return {"stage": rep["stage"], "set_up": rep["set_up"], "note": rep["note"], "top": top,
+            "others": [_risk(r) for r in rep["signals"] if r["key"] not in keys],
+            "red": [r["label"] for r in rep["signals"] if r["level"] == "red"]}
+
+
 def build(snap: dict, lien_analysis: dict | None = None, timeout: float | None = None, summary_ask=None,
-          stale_reason: str = "") -> dict:
+          stale_reason: str = "", risk_report: dict | None = None) -> dict:
     """Everything one digest says, as plain JSON (also returned by the API)."""
-    b = brief.build(snap, lien_analysis)
+    b = brief.build(snap, lien_analysis, risk_report)
     dl = deadlines.lists(snap)
     reasons = deadlines.urgent(dl)
     m = snap["matter"]
@@ -159,7 +173,7 @@ def build(snap: dict, lien_analysis: dict | None = None, timeout: float | None =
         "cards": [{"key": c["key"], "label": c["label"], "value": c["value"], "amount": c.get("amount"),
                    "review": review_text(c), "review_status": (c.get("review") or {}).get("status"),
                    "sure": c["sure"][1], "why": c.get("why", "")} for c in b["cards"]],
-        "liens_status": b["liens_status"], "counts": b["counts"],
+        "liens_status": b["liens_status"], "counts": b["counts"], "risks": risk_part(b["risks"]),
         "deadlines": dl, "changes": changes(snap, baseline(snap)),
         "urgent": reasons, "recipients": recipients(snap),
     }
@@ -231,6 +245,36 @@ def _table(items: list[dict], overdue: bool) -> str:
     return t + (f'<p style="color:{MUTED};font-size:13px">and {more} more in the dashboard.</p>' if more else "")
 
 
+RISK_COLORS = {"red": (RED, "#FEF3F2"), "amber": (AMBER, "#FFFAEB"), "review": ("#5925DC", "#F4F3FF"),
+               "unknown": (MUTED, "#F9FAFB"), "green": (GREEN, "#F6FEF9")}
+
+
+def _risks_html(r: dict) -> str:
+    """'What could hurt this case': the top 1-2 risks as colored boxes, then the other checks in one small table."""
+    out = [_h2("What could hurt this case")]
+    if r.get("note"):
+        out.append(f'<p style="color:{MUTED};font-size:13px;margin:0 0 6px">{e(r["note"])}</p>')
+    if not r["top"]:
+        out.append(f'<p style="color:{GREEN};font-weight:600">Nothing flagged today.</p>')
+    for x in r["top"]:
+        fg, bg = RISK_COLORS[x["level"]]
+        out.append(f'<div style="border-left:5px solid {fg};background:{bg};padding:8px 12px;border-radius:6px;margin:6px 0">'
+                   f'<span style="color:{fg};font-size:12px;font-weight:700;text-transform:uppercase">{e(x["level_words"])}</span>'
+                   f' · <b>{e(x["label"])}</b>: <b style="color:{NAVY}">{e(x["value"])}</b><br>{e(x["why"])}'
+                   + (f' <span style="font-size:12px">{_a(x["url"], "Open in Clio", MUTED)}</span>' if x.get("url") else "")
+                   + "</div>")
+    if r["others"]:
+        rows = "".join(
+            f'<tr><td style="padding:5px 6px;border-bottom:1px solid {LINE};color:{RISK_COLORS[x["level"]][0]};'
+            f'font-weight:700;font-size:12px;white-space:nowrap">{e(x["level_words"])}</td>'
+            f'<td style="padding:5px 6px;border-bottom:1px solid {LINE}">{e(x["label"])}</td>'
+            f'<td style="padding:5px 6px;border-bottom:1px solid {LINE};font-weight:600;white-space:nowrap">{e(x["value"])}</td></tr>'
+            for x in r["others"])
+        out.append(f'<p style="margin:10px 0 2px;color:{MUTED};font-size:13px">Other checks</p>'
+                   f'<table style="width:100%;border-collapse:collapse;font-size:14px">{rows}</table>')
+    return "".join(out)
+
+
 def render_email(d: dict) -> tuple[str, str, str]:
     """(subject, plain text, HTML) for one digest."""
     m, dl, s = d["matter"], d["deadlines"], d["summary"]
@@ -258,6 +302,8 @@ def render_email(d: dict) -> tuple[str, str, str]:
         h.append(f'<div style="background:#FFFAEB;border:1px solid #FEC84B;padding:8px 12px;border-radius:8px;margin:8px 0">'
                  f'<b style="color:{AMBER}">Needs attention today</b><ul style="margin:4px 0 0 18px;padding:0">'
                  + "".join(f"<li>{e(r)}</li>" for r in d["urgent"]) + "</ul></div>")
+
+    h.append(_risks_html(d["risks"]))
 
     # summary
     h.append(_h2("Case summary"))
@@ -324,6 +370,10 @@ def render_email(d: dict) -> tuple[str, str, str]:
         t.append(f"WARNING: Clio could not be read ({stale}); data is {d['data_age_h']} h old.")
     if d["urgent"]:
         t += ["", "NEEDS ATTENTION TODAY"] + [f"- {r}" for r in d["urgent"]]
+    r = d["risks"]
+    t += ["", "WHAT COULD HURT THIS CASE"] + ([f"  ({r['note']})"] if r.get("note") else [])
+    t += [f"- [{x['level_words']}] {x['label']}: {x['value']}. {x['why']}" for x in r["top"]] or ["- Nothing flagged today."]
+    t += [f"- Other check [{x['level_words']}] {x['label']}: {x['value']}" for x in r["others"]]
     t += ["", "CASE SUMMARY", s["facts"]] + [f"- {x['text']} ({x['src']['label']})" for x in s["sentences"]]
     t += ["", "WHAT CHANGED"] + ([f"- {x}" for x in ch["lines"]] or ["- First digest" if ch["since"] is None else "- No changes"])
     t += ["", f"OVERDUE ({len(late)})"]
@@ -345,6 +395,9 @@ def render_slack(d: dict) -> str | None:
     m = d["matter"]
     head = f"*Law-monade · {m.get('client') or 'Case'}{' (' + m['number'] + ')' if m.get('number') else ''}* needs attention:"
     lines = [head] + [f"• {r}" for r in d["urgent"]]
+    red = (d.get("risks") or {}).get("red") or []
+    if red:     # risk names only (no case details); risks never trigger a ping on their own
+        lines.append(f"• {len(red)} red risk{'s' if len(red) != 1 else ''}: {', '.join(red)}")
     if d.get("stale_reason"):
         lines.append(f"• Data is {d['data_age_h']} h old (Clio could not be read)")
     lines.append(f"<{settings.dashboard_url}|Open the case> · full digest sent by email")
@@ -459,7 +512,7 @@ def fresh(matter_id) -> tuple[dict | None, str]:
 # ---------- the run ----------
 def run(matter_id, trigger: str = "scheduled", actor: str = "", snap: dict | None = None, dry_run: bool = False,
         force: bool = False, email_only: bool = False, lien_analysis: dict | None = None,
-        timeout: float | None = None) -> dict:
+        timeout: float | None = None, risk_report: dict | None = None) -> dict:
     """See the module docstring. Returns {"status", "message", "run_key", "email", "slack", "digest", ...}."""
     new_run()
     mid = str(matter_id)
@@ -487,7 +540,8 @@ def run(matter_id, trigger: str = "scheduled", actor: str = "", snap: dict | Non
             return out | {"status": "busy", "message": "This digest is being sent right now."}
 
     try:
-        result = _run(mid, trigger, actor, snap, dry_run, email_only, lien_analysis, timeout, prev, run_key)
+        result = _run(mid, trigger, actor, snap, dry_run, email_only, lien_analysis, timeout, prev, run_key,
+                      risk_report if snap is not None else None)
     except Exception as x:          # never leave a run stuck in "running"
         LOG.exception("[digest] run failed")
         if not dry_run:
@@ -497,7 +551,8 @@ def run(matter_id, trigger: str = "scheduled", actor: str = "", snap: dict | Non
     return out | result
 
 
-def _run(mid, trigger, actor, snap, dry_run, email_only, lien_analysis, timeout, prev, run_key) -> dict:
+def _run(mid, trigger, actor, snap, dry_run, email_only, lien_analysis, timeout, prev, run_key,
+         risk_report=None) -> dict:
     stale = ""
     if snap is None:
         with stage("digest.load", LOG) as info:
@@ -529,7 +584,7 @@ def _run(mid, trigger, actor, snap, dry_run, email_only, lien_analysis, timeout,
         return {"status": "unavailable", "message": f"Clio unreachable and the saved copy is too old. {text}",
                 "email": {"status": es, "to": sent_to, "error": err}}
 
-    d = build(snap, lien_analysis, timeout=timeout, stale_reason=stale)
+    d = build(snap, lien_analysis, timeout=timeout, stale_reason=stale, risk_report=risk_report)
     subject, text, html_ = render_email(d)
     slack_text = None if email_only else render_slack(d)
     if dry_run:

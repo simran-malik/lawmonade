@@ -338,7 +338,7 @@ def case_screen(s: dict):
     brief, timeline, share = st.tabs(["Case brief", "Everything, by date", "Share with a provider"])
     with brief:
         from ui import digest_panel
-        digest_panel.render(s, lien_breakdown(s))
+        digest_panel.render(s, lien_breakdown(s), risk_report(s))
         risk_row(s)
         money_row(s)
         c = snapshot.counts(s)

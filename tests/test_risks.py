@@ -135,3 +135,8 @@ def test_brief_includes_risks(tmp_path, monkeypatch):
     rr = risks.build(snap(), TODAY, ask=good_ai, history=[])
     b = brief.build(snap(), {"status": "failed", "items": [], "total": None}, rr)
     assert b["risks"]["top"][0]["level"] == "red"
+
+
+def test_no_history_yet_says_so():
+    st = by_key(risks.build(snap(), TODAY, ask=good_ai, history=[]))["days_in_stage"]
+    assert st["value"] == "—" and st["level"] == "unknown" and "Not enough history" in st["why"]

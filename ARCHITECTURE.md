@@ -105,7 +105,7 @@ flowchart LR
   CRON["n8n schedule<br/>weekdays 6:55 firm time"] -->|"GET /digest/matters<br/>POST /matters/id/digest/run"| RUN
   BTN["Case brief tab<br/>Send digest now"] -->|"the copy on screen"| RUN
   RUN["digest.run()<br/>claim run_key (SQLite)"] --> LOAD["fresh Clio read<br/>else saved copy + age"]
-  LOAD --> B["brief.build()<br/>same numbers as the tab"]
+  LOAD --> B["brief.build()<br/>same numbers + risks as the tab"]
   LOAD --> D["deadlines.py<br/>firm time zone"]
   LOAD --> S["summary.py<br/>AI sentences, each checked"]
   LOAD --> C["what changed<br/>vs. last digest's snapshot"]
@@ -116,6 +116,7 @@ flowchart LR
 | Part | What it does | Edge cases handled |
 |---|---|---|
 | `digest_runs` (SQLite) | One row per case per firm day (scheduled) or per click (manual); status per channel | Unique `run_key` + `BEGIN IMMEDIATE`: an n8n retry or a double click never sends twice. A failed run resumes and redoes only the channel that didn't go out. A crashed run is taken over after 10 min. |
+| Case risks | "What could hurt this case" in the email (top 1-2 from `risks.py`, then other checks); same top risks in the digest bar on the Case brief tab | Slack adds red risk names only, and only when it pings anyway (risks never ping on their own); the button sends the risks shown on screen |
 | `deadlines.py` | Overdue / long overdue (>90 days) / due today-tomorrow / next 14 days / no due date; SOL | Firm-time-zone days (UTC evening is still "today" in LA); only open tasks; past events never "overdue"; cancelled entries skipped; Clio's SOL reference object isn't treated as a date |
 | Contact to text | For each overdue task: the contact it names, else the client, else the assigned staff member; `sms:` link with an editable draft | A person sends it (nothing auto-texted); no amounts in drafts; "no phone in Clio" shown instead of a dead link |
 | `summary.py` (option C) | Facts line by code + 3-5 AI sentences from Clio fields, notes, emails, open tasks | Each sentence must quote its source word for word and may not add a number, date or month that isn't in the quote; otherwise dropped. Nothing passes / AI down / slow -> Clio's own case-summary words. Cached by input, so an unchanged case costs $0. |

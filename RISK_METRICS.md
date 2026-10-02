@@ -56,5 +56,7 @@ Cross-stage signals:
   `liability` (AI quote + confidence, checked against the field; else "needs review").
 - Every stage: `days_since_activity`, `days_in_stage` (from dated snapshots; shows "N+ days" when every saved copy
   has the same stage, and never calls that lower bound green).
-- Not yet: other stages; client-contact by sender/receiver (the loader doesn't fetch Clio's `senders`/`receivers`);
-  risks in the digest email.
+- Daily digest: email has a "What could hurt this case" section (top 1-2 as colored boxes + other checks); the Slack
+  ping (only sent when something is urgent) adds the names of red risks, never details; risks never trigger a ping on
+  their own. The digest bar on the Case brief tab shows the same top risks; the button sends the risks on screen.
+- Not yet: other stages; client-contact by sender/receiver (the loader doesn't fetch Clio's `senders`/`receivers`).

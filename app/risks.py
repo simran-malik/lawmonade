@@ -129,7 +129,7 @@ def hard_deadlines(snap: dict, today: date, conf: dict) -> dict:
         head = late_court[0] if late_court else late[0]
         value = f"{_plural(len(late), 'task')} overdue"
         why = f"“{head['what']}” is {_plural(-head['days'], 'day')} overdue (due {head['nice']})."
-        if len(late) > 1:
+        if len(late) > 1 and -head["days"] != worst:
             why += f" Oldest is {_plural(worst, 'day')} late."
         if soon:
             why += f" Also {_plural(len(soon), 'court/discovery item')} due within {conf.get('upcoming_days', 7)} days."
@@ -304,6 +304,10 @@ def days_in_stage(snap: dict, today: date, t: dict, history: list[tuple[str, str
         return _signal("days_in_stage", "common", label, level_for(days, t), _plural(days, "day"),
                        f"Moved to {stage} between our copies, by {since.strftime('%b %-d, %Y')}.", src, ("calc", "Calculated"))
     # Same stage in every copy we have: we only know a lower bound
+    if days == 0:
+        return _signal("days_in_stage", "common", label, "unknown", "—",
+                       "Not enough history yet: our first saved copy of this case is from today, and Clio doesn't "
+                       "store when the stage changed.", src, ("check", "Missing"))
     lvl = level_for(days, t)
     return _signal("days_in_stage", "common", label, lvl if lvl != "green" else "unknown", f"{days}+ days",
                    f"{stage} in every copy we've saved, since {since.strftime('%b %-d, %Y')}. "

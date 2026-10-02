@@ -223,3 +223,26 @@ def test_what_changed_since_last_digest(tmp_path, monkeypatch):
     now["tasks"] = [dict(t, status="complete") if t["id"] == "t1" else t for t in now["tasks"]]
     ch = digest.changes(now, base)
     assert "1 new note" in ch["lines"] and "Task completed: Request records from Acme Chiropractic" in ch["lines"]
+
+
+# ---------- case risks in the digest ----------
+def test_digest_email_and_slack_show_case_risks(tmp_path, monkeypatch):
+    sent = _fakes(monkeypatch, tmp_path)
+    s = snap()
+    s["matter"]["stage"] = "Litigation"
+    out = digest.run("m1", "manual", snap=s, lien_analysis=NO_AI, dry_run=True)
+    r = out["digest"]["risks"]
+    assert r["set_up"] and r["top"][0]["key"] == "hard_deadlines" and r["top"][0]["level"] == "red"   # t3 is 273 days late
+    assert "Deadlines (court, discovery, tasks)" in r["red"]
+    assert "What could hurt this case" in out["email"]["html"] and "WHAT COULD HURT THIS CASE" in out["email"]["text"]
+    assert "red risk" in out["slack"]["text"] and "Acme" not in out["slack"]["text"]      # names of risks, no details
+    assert sent["email"] == [] and sent["slack"] == []                                    # preview sends nothing
+
+
+def test_digest_uses_the_risks_the_dashboard_shows(tmp_path, monkeypatch):
+    _fakes(monkeypatch, tmp_path)
+    shown = {"stage": "Treatment", "stage_key": None, "set_up": False, "note": "not set up", "today": "2026-10-02",
+             "signals": [], "top": []}
+    out = digest.run("m1", "manual", snap=snap(), lien_analysis=NO_AI, dry_run=True, risk_report=shown)
+    assert out["digest"]["risks"]["top"] == [] and "Nothing flagged today." in out["email"]["html"]
+    assert "not set up" in out["email"]["text"]
