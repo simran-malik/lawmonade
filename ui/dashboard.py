@@ -10,11 +10,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import streamlit as st  # noqa: E402
 
-from app import snapshot  # noqa: E402
+from app import log, snapshot  # noqa: E402
 from app.config import settings  # noqa: E402
 from ui import theme  # noqa: E402
 from ui.theme import esc  # noqa: E402
 
+log.setup()
 theme.apply()
 ss = st.session_state
 ss.setdefault("snap", None)

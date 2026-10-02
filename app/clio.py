@@ -10,9 +10,11 @@ from urllib.parse import quote
 import requests
 
 from app.config import settings
+from app.log import get, stage
 from app.snapshot import nice_date, now_iso, src
 
 W = "Clio"
+LOG = get("clio")
 
 
 class ClioError(Exception):
@@ -208,10 +210,18 @@ def load_steps(query: str):
                                                         "expenses", "documents", "contacts")},
                           "matter": st["matter"], "fields": st["fields"]}
 
+    def timed(name: str, fn, counted: tuple[str, ...] = ()):
+        """Log one line per step: "[clio.notes] 1.1s, notes=42, communications=69"."""
+        def run():
+            with stage(f"clio.{name}", LOG) as info:
+                fn()
+                info.update({k: len(st.get(k) or []) for k in counted})
+        return run
+
     return st, [
-        ("Finding the case in Clio", find),
-        ("Reading notes and emails", notes_and_emails),
-        ("Reading tasks, calendar and expenses", tasks_calendar_money),
-        ("Reading documents and contacts", docs_and_people),
-        ("Putting it together", assemble),
+        ("Finding the case in Clio", timed("find", find)),
+        ("Reading notes and emails", timed("notes", notes_and_emails, ("notes", "communications"))),
+        ("Reading tasks, calendar and expenses", timed("tasks", tasks_calendar_money, ("tasks", "calendar", "expenses"))),
+        ("Reading documents and contacts", timed("documents", docs_and_people, ("documents", "contacts"))),
+        ("Putting it together", timed("assemble", assemble)),
     ]

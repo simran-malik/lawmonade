@@ -6,9 +6,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from app import log  # noqa: E402
 from app.config import settings  # noqa: E402
 from app.pdf import read_pdf  # noqa: E402
 
+log.setup()
 args = sys.argv[1:]
 question = ""
 if "--ask" in args:

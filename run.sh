@@ -27,6 +27,7 @@ Flags (any command; override .env for this run only)
   --model NAME              model for that AI (e.g. gemini-2.5-pro)
   --port N                  port for ui or api
   --ocr-threshold 80        OCR confidence (0-100) below which words count as unclear
+  --log-level LEVEL         DEBUG | INFO | WARNING | ERROR (default INFO; logs go to the terminal or logs/)
 
 Ports: API 8000, dashboard 8501, n8n 5678. Stop hack/ first: cd ../hack && bash run.sh stop
 
@@ -106,6 +107,7 @@ while [ $# -gt 0 ]; do
     --model)  MODEL="$2"; shift 2 ;;
     --port)   PORT="$2"; shift 2 ;;
     --ocr-threshold) export OCR_MIN_CONF="$2"; shift 2 ;;
+    --log-level) case "$2" in DEBUG|INFO|WARNING|ERROR|debug|info|warning|error) export LOG_LEVEL="$2" ;; *) die "--log-level must be DEBUG, INFO, WARNING or ERROR" ;; esac; shift 2 ;;
     *)        PASS+=("$1"); shift ;;
   esac
 done

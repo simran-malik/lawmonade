@@ -4,7 +4,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, UploadFile
 
+from app import log
 from app.pdf import read_pdf
+
+log.setup()
 
 app = FastAPI(title="Law-monade API")
 

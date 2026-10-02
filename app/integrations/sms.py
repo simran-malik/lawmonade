@@ -14,6 +14,9 @@ import urllib.parse
 import urllib.request
 
 from app.config import settings
+from app.log import get
+
+LOG = get("sms")
 
 
 TRIAL_TEMPLATES = {
@@ -27,13 +30,13 @@ def send_sms(to: str, body: str) -> dict:
     sid, token, sender = settings.twilio_account_sid, settings.twilio_auth_token, settings.twilio_from_number
     template = settings.twilio_trial_template.strip()
     if not (sid and token and sender):
-        print(f"[twilio not set up] would text {to}: {body}")
+        LOG.info("[send.sms] Twilio not set up; would text ...%s (%d characters)", to[-4:], len(body))
         return {"status": "not_sent", "reason": "Twilio keys missing in .env", "intended_body": body}
     if template and template not in TRIAL_TEMPLATES:
         return {"status": "failed", "reason": f"TWILIO_TRIAL_TEMPLATE '{template}' is not one of: "
                                               f"{', '.join(sorted(TRIAL_TEMPLATES))}"}
     if template:
-        print(f"[twilio trial] phone gets template '{template}'. Real message would be: {body}")
+        LOG.info("[send.sms] trial account: phone gets template %s instead of our %d-character message", template, len(body))
     url = f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json"
     data = urllib.parse.urlencode({"To": to, "From": sender, "Body": template or body}).encode()
     auth = base64.b64encode(f"{sid}:{token}".encode()).decode()

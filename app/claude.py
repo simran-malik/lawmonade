@@ -4,13 +4,14 @@ client()                             -> Anthropic client with a 2-minute time li
 claude_json("Extract ...", MyModel)  -> MyModel   (Structured Outputs: reply always matches the model)
 Docs: https://platform.claude.com/docs/en/build-with-claude/structured-outputs
 """
-import sys
-import time
 from typing import TypeVar
 
 from pydantic import BaseModel
 
 from app.config import settings
+from app.log import get, stage
+
+LOG = get("claude")
 
 T = TypeVar("T", bound=BaseModel)
 TIMEOUT_S = 120   # give up after 2 minutes instead of hanging the screen
@@ -32,22 +33,21 @@ def claude_json(prompt: str, model: type[T], max_tokens: int = 16000) -> T:
     if not hasattr(c.messages, "parse"):
         raise RuntimeError("Your anthropic package is too old for Structured Outputs. "
                            "Run: uv sync --upgrade-package anthropic")
-    print(f"[claude] asking {settings.anthropic_model} for {model.__name__}...", file=sys.stderr, flush=True)
-    start = time.monotonic()
     try:
-        # The SDK turns the Pydantic model into a JSON schema (moving rules Claude can't enforce,
-        # like min/max, into descriptions), and checks the reply against the full model.
-        r = c.messages.parse(
-            model=settings.anthropic_model,
-            max_tokens=max_tokens,
-            messages=[{"role": "user", "content": prompt}],
-            output_format=model,
-        )
+        with stage("llm.claude", LOG) as info:
+            info.update(model=settings.anthropic_model, schema=model.__name__)
+            # The SDK turns the Pydantic model into a JSON schema (moving rules Claude can't enforce,
+            # like min/max, into descriptions), and checks the reply against the full model.
+            r = c.messages.parse(
+                model=settings.anthropic_model,
+                max_tokens=max_tokens,
+                messages=[{"role": "user", "content": prompt}],
+                output_format=model,
+            )
+            info.update(stop=r.stop_reason)
     except anthropic.APITimeoutError:
         raise RuntimeError(f"Claude took longer than {TIMEOUT_S} s and was stopped. "
                            "Try again, or use --llm mock for the demo.") from None
-    finally:
-        print(f"[claude] took {time.monotonic() - start:.1f} s", file=sys.stderr, flush=True)
 
     if r.stop_reason == "refusal":
         raise RuntimeError("Claude declined this request (stop_reason=refusal).")

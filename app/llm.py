@@ -5,13 +5,14 @@ ask_json(prompt, MyPydanticModel)      -> MyPydanticModel   (Claude Structured O
 ask_image(png_bytes, "Transcribe...")  -> str
 """
 import base64
-import sys
-import time
 from typing import TypeVar
 
 from pydantic import BaseModel
 
 from app.config import settings
+from app.log import get, stage
+
+LOG = get("llm")
 
 
 def _client():
@@ -29,13 +30,10 @@ def ask(prompt: str, text: str = "", system: str | None = None, max_tokens: int 
         from app.gemini import gemini_text
         return gemini_text(f"{system}\n\n{content}" if system else content, max_tokens)
     kw = {"system": system} if system else {}
-    print(f"[claude] ask {settings.anthropic_model}...", file=sys.stderr, flush=True)
-    start = time.monotonic()
-    try:
+    with stage("llm.claude.text", LOG) as info:
+        info.update(model=settings.anthropic_model)
         msg = _client().messages.create(model=settings.anthropic_model, max_tokens=max_tokens,
                                         messages=[{"role": "user", "content": content}], **kw)
-    finally:
-        print(f"[claude] took {time.monotonic() - start:.1f} s", file=sys.stderr, flush=True)
     return msg.content[0].text
 
 

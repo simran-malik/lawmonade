@@ -11,6 +11,9 @@ import smtplib
 from email.message import EmailMessage
 
 from app.config import ROOT, settings
+from app.log import get, stage
+
+LOG = get("email")
 
 GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.send"]
 GMAIL_TOKEN = ROOT / "token_gmail.json"

@@ -9,7 +9,15 @@ ROOT = Path(__file__).resolve().parent.parent
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ROOT / ".env", extra="ignore")
 
-    llm_provider: str = "anthropic"   # anthropic | gemini
+    llm_provider: str = "anthropic"   # anthropic | gemini | mock (saved answers in data/fixtures/llm, no key)
+    # LLM answer cache (data/cache/llm): on = use + save, off = always call the AI, only = never call (offline demo)
+    llm_cache: str = "on"
+    llm_cache_dir: Path = ROOT / "data" / "cache" / "llm"
+    llm_fixtures_dir: Path = ROOT / "data" / "fixtures" / "llm"
+    # Prices in USD per million tokens, for "cost per case" in the logs. Copy from the provider's pricing page.
+    llm_price_in_per_mtok: float = 0.0
+    llm_price_out_per_mtok: float = 0.0
+    log_level: str = "INFO"           # DEBUG | INFO | WARNING | ERROR
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-5-5"
     gemini_api_key: str = ""
