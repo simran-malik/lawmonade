@@ -60,9 +60,9 @@ h1 {{ font-size: 2.3rem !important; }} h2 {{ font-size: 1.8rem !important; }} h3
 .lm-card.warn {{ border: 2px solid {AMBER}; background: #FFFAEB; }}
 .lm-label {{ text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.8rem; font-weight: 700; color: {MUTED}; }}
 .lm-value {{ font-size: 2rem; font-weight: 700; color: {NAVY}; line-height: 1.15; }}
-.lm-sub {{ color: {INK}; font-size: 0.98rem; }}
+.lm-sub {{ color: {INK}; font-size: 0.98rem; overflow-wrap: anywhere; white-space: normal; }}
 .lm-why {{ color: {AMBER}; font-weight: 600; font-size: 0.95rem; }}
-.lm-src {{ margin-top: auto; padding-top: 0.5rem; border-top: 1px dashed {LINE}; font-size: 0.85rem; color: {MUTED}; }}
+.lm-src {{ overflow-wrap: anywhere; margin-top: auto; padding-top: 0.5rem; border-top: 1px dashed {LINE}; font-size: 0.85rem; color: {MUTED}; }}
 .lm-src b {{ color: {INK}; font-weight: 600; }}
 .lm-pill {{ display: inline-block; border-radius: 999px; padding: 0.1rem 0.55rem; font-size: 0.78rem; font-weight: 700;
     margin-right: 0.35rem; }}

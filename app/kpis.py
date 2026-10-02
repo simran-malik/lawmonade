@@ -46,9 +46,9 @@ def usd(x: float | None) -> str:
     return "—" if x is None else f"${x:,.0f}"
 
 
-def first_line(text, n=110) -> str:
-    t = str(text or "").strip().split("\n")[0]
-    return t if len(t) <= n else t[: n - 1] + "…"
+def first_line(text) -> str:
+    """First line of a text, in full (never cut off with "…")."""
+    return str(text or "").strip().split("\n")[0]
 
 
 def is_medical(e: dict) -> bool:
@@ -116,5 +116,5 @@ def kpis(snap: dict) -> list[dict]:
                     source=f"Added up from {len(ex)} {W} expenses",
                     sure=("calc", "Calculated") if not missing else ("check", "Check"),
                     why=f"{len(missing)} expenses have no amount." if missing else "", warn=bool(missing),
-                    items=[e["src"]["label"] + f" · {usd(e.get('amount'))} · {first_line(e.get('title'), 70)}" for e in firm]))
+                    items=[e["src"]["label"] + f" · {usd(e.get('amount'))} · {first_line(e.get('title'))}" for e in firm]))
     return out
