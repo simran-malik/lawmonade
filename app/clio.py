@@ -148,6 +148,35 @@ def contact_email(contact_id) -> str:
     return ""
 
 
+def _assignee_reach(assignees: list) -> dict:
+    """{(type, id): {email, phone}} for the people tasks are assigned to.
+    Users (firm staff): one users.json call (email; phone if the account exposes it).
+    Contacts: one GET per contact. Never fails the load: no permission or a rejected field just means no details."""
+    out = {}
+    if not any(assignees):
+        return out
+    try:
+        for u in _get_all("users.json", {}, ["id,name,email,phone_number", "id,name,email"]):
+            out[("User", u.get("id"))] = {"email": u.get("email") or "", "phone": u.get("phone_number") or ""}
+    except (ClioError, requests.RequestException) as e:
+        LOG.info("[clio.users] firm users not readable (%s); task assignees shown by name only", getattr(e, "message", e))
+    ids = {a.get("id") for a in assignees if a and a.get("type") == "Contact" and a.get("id")}
+
+    def contact(cid):
+        try:
+            d = _get(f"{settings.clio_base}/api/v4/contacts/{cid}.json",
+                     {"fields": "id,primary_email_address,primary_phone_number"})
+            d = d.json().get("data", {}) if d.status_code == 200 else {}
+        except (ClioError, requests.RequestException, ValueError):
+            d = {}
+        return cid, {"email": d.get("primary_email_address") or "", "phone": d.get("primary_phone_number") or ""}
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for cid, r in pool.map(contact, ids):
+            out[("Contact", cid)] = r
+    return out
+
+
 def _name(x) -> str:
     return (x or {}).get("name", "") if isinstance(x, dict) else ""
 
@@ -205,12 +234,22 @@ def load_steps(query: str, matter_id=None):
 
     def tasks_calendar_money():
         mid = st["matter"]["id"]
-        st["tasks"] = [{"id": t["id"], "date": t.get("due_at"), "title": t.get("name", ""), "text": t.get("description", ""),
-                        "status": t.get("status", ""), "assignee": _name(t.get("assignee")),
-                        "src": src(W, "Task", t["id"], f"Task · due {nice_date(t.get('due_at'))} · {t.get('name', '')}")}
-                       for t in _get_all("tasks.json", {"matter_id": mid},
-                                         ["id,name,description,due_at,status,completed_at,assignee{id,name}",
-                                          "id,name,description,due_at,status,completed_at", "id,name,description,due_at,status"])]
+        rows = _get_all("tasks.json", {"matter_id": mid},
+                        ["id,name,description,due_at,status,completed_at,assignee{id,name,type}",
+                         "id,name,description,due_at,status,completed_at,assignee{id,name}",
+                         "id,name,description,due_at,status,completed_at", "id,name,description,due_at,status"])
+        reach = _assignee_reach([t.get("assignee") for t in rows])
+        st["tasks"] = []
+        for t in rows:
+            a = t.get("assignee") or {}
+            r = reach.get((a.get("type") or "User", a.get("id")), {})
+            st["tasks"].append({
+                "id": t["id"], "date": t.get("due_at"), "title": t.get("name", ""), "text": t.get("description", ""),
+                "status": t.get("status", ""), "assignee": _name(a),
+                # the task's responsible person: Clio "assignee" is a firm User or a Contact
+                "assignee_type": a.get("type") or ("User" if a else ""),
+                "assignee_email": r.get("email", ""), "assignee_phone": r.get("phone", ""),
+                "src": src(W, "Task", t["id"], f"Task · due {nice_date(t.get('due_at'))} · {t.get('name', '')}")})
         st["calendar"] = [{"id": e["id"], "date": e.get("start_at"), "end": e.get("end_at"), "title": e.get("summary", ""), "text": e.get("description", ""),
                            "src": src(W, "Calendar", e["id"], f"Calendar · {nice_date(e.get('start_at'))} · {e.get('summary', '')}")}
                           for e in _get_all("calendar_entries.json", {"matter_id": mid},

@@ -385,6 +385,9 @@ CSS_MORE = f"""
 .lm-kind.Email, .lm-kind.Phone {{ background: #EEF2F8; border-color: #C7D2E3; }}
 .lm-kind.Expense {{ background: #ECFDF3; border-color: #ABEFC6; color: {GREEN}; }}
 .lm-late {{ color: {RED}; font-weight: 700; font-size: 0.85rem; margin-left: 0.4rem; }}
+.lm-soon {{ color: {GOLD_TEXT}; font-weight: 700; font-size: 0.85rem; margin-left: 0.4rem; }}
+.lm-month.late {{ color: {RED}; border-bottom-color: {RED}; }}
+.lm-month.soon {{ color: {GOLD_TEXT}; }}
 .lm-srcline {{ font-size: 0.85rem; color: {MUTED}; margin-top: 0.3rem; }}
 .lm-hint {{ color: {GOLD_TEXT}; font-weight: 600; }}
 .lm-oncal {{ color: {GREEN}; font-weight: 600; font-size: 0.9rem; text-align: center; }}

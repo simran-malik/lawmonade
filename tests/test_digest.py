@@ -246,3 +246,33 @@ def test_digest_uses_the_risks_the_dashboard_shows(tmp_path, monkeypatch):
     out = digest.run("m1", "manual", snap=snap(), lien_analysis=NO_AI, dry_run=True, risk_report=shown)
     assert out["digest"]["risks"]["top"] == [] and "Nothing flagged today." in out["email"]["html"]
     assert "not set up" in out["email"]["text"]
+
+
+# ---------- tab 2: overdue / due soon sections + responsible person ----------
+def _tab2_items(s):
+    return [it | {"kind": "Task"} for it in s["tasks"]] + [it | {"kind": "Calendar"} for it in s["calendar"]] + \
+           [{"id": "n1", "kind": "Note", "date": "2026-09-30", "title": "Note", "src": src("Note", "n1")}]
+
+
+def test_split_urgent_sections(monkeypatch):
+    monkeypatch.setattr(settings, "timezone", "America/Los_Angeles")
+    monkeypatch.setattr(settings, "digest_urgent_days", 1)
+    late, soon, rest = deadlines.split_urgent(_tab2_items(snap()), TODAY)
+    assert [i["id"] for i in late] == ["t3", "t1"]                    # most overdue first, all overdue (incl. long)
+    assert [i["days"] for i in late] == [-273, -7]
+    assert [i["id"] for i in soon] == ["t2"]                          # tomorrow; e3 is cancelled
+    assert {i["id"] for i in rest} == {"t4", "t5", "e1", "e2", "e3", "n1"}   # done, undated, later, past, notes
+
+
+def test_responsible_uses_clio_assignee_then_attorney():
+    s = snap()
+    t = {"kind": "Task", "title": "Request records", "assignee": "Kim Paralegal", "assignee_type": "User",
+         "assignee_email": "kim@firm.test", "assignee_phone": "(619) 555-0144"}
+    who = deadlines.responsible(t, s, -3)
+    assert (who["name"], who["kind"], who["email"], who["phone"]) == ("Kim Paralegal", "staff", "kim@firm.test", "+16195550144")
+    assert "was due 3 days ago" in who["draft"] and who["subject"].startswith("Overdue:")
+    who = deadlines.responsible({"kind": "Task", "title": "Wage letter"}, s, 1)     # nobody assigned
+    assert (who["name"], who["email"]) == ("Sam Lee", "sam@firm.test")
+    assert "no one assigned" in who["role"] and "is due tomorrow" in who["draft"]
+    no_att = snap(matter=s["matter"] | {"attorney": {"name": "", "email": ""}})
+    assert deadlines.responsible({"kind": "Calendar", "title": "Call"}, no_att, 0) is None

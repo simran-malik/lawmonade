@@ -1,11 +1,14 @@
 """Tab 2: Everything, by date. Every note, email, call, task, calendar entry, expense and document in one list.
 Each entry shows where it came from. Long text opens in place ("Read all").
-Tasks and calendar entries can go on Google Calendar: all at once (under the search bar) or one by one."""
+Tasks and calendar entries can go on Google Calendar: all at once (under the search bar) or one by one.
+On top: "Overdue" (open tasks past due) and "Due today or tomorrow" (open tasks + calendar entries), each with
+Email and Text (Twilio) to the task's responsible person in Clio. Then everything else, month by month."""
 from datetime import datetime
 
 import streamlit as st
 
-from app import gcal
+from app import deadlines, gcal, store
+from app.config import settings
 from app.share import overdue
 from app.snapshot import nice_date
 from ui.theme import esc
@@ -30,7 +33,7 @@ def _when(it) -> datetime:
         return datetime.min
 
 
-def _entry(it: dict, matter_url: str) -> str:
+def _entry(it: dict, matter_url: str, flag: str = "") -> str:
     text = (it.get("text") or "").strip()
     if it.get("kind") == "Document" and it.get("folder"):
         text = f"Folder: {it['folder']}"
@@ -41,6 +44,7 @@ def _entry(it: dict, matter_url: str) -> str:
         done = (it.get("status") or "").lower() in ("complete", "completed", "done")
         late = '<span class="lm-late">OVERDUE</span>' if (not done and overdue(it.get("date"))) else \
                ('<span class="lm-srcline"> · done</span>' if done else '<span class="lm-srcline"> · open</span>')
+    late = flag or late
     # Long text: show whole sentences first, the rest behind "Read the rest" (never cut mid-sentence, no "…")
     cut = text.rfind(". ", 0, PREVIEW) + 1
     if len(text) <= PREVIEW or cut <= 0:
@@ -126,6 +130,83 @@ def _calendar_cell(s: dict, it: dict, done: dict):
                   help="Put this on Google Calendar" if gcal.ready() else "Run bash run.sh gcal once first")
 
 
+# ---------- Overdue / due soon: email or text the responsible person ----------
+def _flag(days: int) -> str:
+    if days < 0:
+        return f'<span class="lm-late">OVERDUE · {-days} day{"s" if days != -1 else ""}</span>'
+    return f'<span class="lm-soon">{"DUE TODAY" if days == 0 else "DUE TOMORROW" if days == 1 else f"DUE IN {days} DAYS"}</span>'
+
+
+def _send_email(s: dict, it: dict, k: str):
+    from app import emailer
+    ss, to = st.session_state, (st.session_state.get(k + "to") or "").strip()
+    try:
+        r = emailer.send(to, ss.get(k + "subj") or "Follow-up", ss.get(k + "msg") or "")
+        store.log("reminder_email_sent", f"{s['matter']['id']}:{gcal.key(it)}", {"to": r["intended"], "via": r["via"]},
+                  actor=_who())
+        ss[k + "done"] = ("ok", f"Email sent to {r['to']}.")
+    except emailer.EmailError as e:
+        store.log("reminder_email_failed", f"{s['matter']['id']}:{gcal.key(it)}", {"to": to, "error": e.message}, actor=_who())
+        ss[k + "done"] = ("err", f"{e.message} {e.fix}")
+
+
+def _send_text(s: dict, it: dict, k: str):
+    from app.integrations.sms import send_sms
+    ss = st.session_state
+    to = deadlines.phone(ss.get(k + "ph"))
+    if not to:
+        ss[k + "done"] = ("err", "That isn't a phone number we can text. Use 10 digits, or +country code.")
+        return
+    r = send_sms(to, ss.get(k + "sms") or "")
+    ok = bool(r.get("sid")) and r.get("status") not in ("failed", "not_sent")
+    store.log("reminder_text_sent" if ok else "reminder_text_failed", f"{s['matter']['id']}:{gcal.key(it)}",
+              {"to": "..." + to[-4:], "status": r.get("status"), "reason": r.get("reason", "")}, actor=_who())
+    if ok:
+        extra = f" (trial account: Twilio sent its {r['sent_template']} template)" if r.get("sent_template") else ""
+        ss[k + "done"] = ("ok", f"Text sent to ...{to[-4:]}{extra}.")
+    else:
+        ss[k + "done"] = ("err", f"Not sent: {r.get('reason') or r.get('status')}")
+
+
+def _reach_cell(s: dict, it: dict, done: dict):
+    """Right-hand column of an overdue / due-soon row: calendar, then Email and Text the responsible person."""
+    _calendar_cell(s, it, done)
+    who = deadlines.responsible(it, s, it["days"])
+    k = f"reach_{gcal.key(it)}_"
+    if not who:
+        st.caption("No one is assigned in Clio and the case has no responsible attorney.")
+        return
+    st.caption(f"{who['name']} · {who['role']}")
+    with st.popover("Email", use_container_width=True):
+        st.text_input("To", value=who["email"], key=k + "to", placeholder="name@firm.com",
+                      help="From the task's assignee in Clio" if who["email"] else "Clio has no email for this person: type one")
+        st.text_input("Subject", value=who["subject"], key=k + "subj")
+        st.text_area("Message (you can edit it)", value=who["draft"], key=k + "msg", height=140)
+        st.button("Send email", key=k + "send_email", type="primary", on_click=_send_email, args=(s, it, k),
+                  use_container_width=True)
+    with st.popover("Text", use_container_width=True):
+        st.text_input("Phone", value=who["phone"], key=k + "ph", placeholder="(619) 555-0123",
+                      help="From Clio" if who["phone"] else "Clio has no phone for this person: type one")
+        st.text_area("Message (you can edit it)", value=who["draft"], key=k + "sms", height=120, max_chars=640)
+        twilio = bool(settings.twilio_account_sid and settings.twilio_auth_token and settings.twilio_from_number)
+        st.button("Send text (Twilio)", key=k + "send_text", type="primary", on_click=_send_text, args=(s, it, k),
+                  disabled=not twilio, use_container_width=True,
+                  help=None if twilio else "Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM_NUMBER to .env")
+    msg = st.session_state.get(k + "done")
+    if msg:
+        (st.success if msg[0] == "ok" else st.error)(msg[1])
+
+
+def _urgent_section(s: dict, title: str, cls: str, items: list[dict], done: dict, url: str):
+    st.markdown(f'<div class="lm-month {cls}">{title} ({len(items)})</div>', unsafe_allow_html=True)
+    for it in items:
+        left, right = st.columns([6, 1.6], vertical_alignment="top")
+        with left:
+            st.markdown(_entry(it, url, _flag(it["days"])), unsafe_allow_html=True)
+        with right:
+            _reach_cell(s, it, done)
+
+
 def render(s: dict):
     st.markdown("### Everything in the file, newest first")
     c1, c2, c3 = st.columns([3, 4, 1.4])
@@ -156,10 +237,19 @@ def render(s: dict):
                     unsafe_allow_html=True)
         return
 
+    url = s["matter"].get("url", "")
+    late, soon, rest = deadlines.split_urgent(items)
+    if late:
+        _urgent_section(s, "Overdue", "late", late, done, url)
+    if soon:
+        n = settings.digest_urgent_days
+        _urgent_section(s, "Due today or tomorrow" if n == 1 else f"Due in the next {n} days", "soon", soon, done, url)
+    if (late or soon) and rest:
+        st.markdown("#### Everything else, by month")
+
     # Plain entries are drawn together in one block (fast); a task or calendar entry gets its own row with a button
     html, month = [], None
-    url = s["matter"].get("url", "")
-    for it in items:
+    for it in rest:
         d = _when(it)
         label = d.strftime("%B %Y") if d != datetime.min else "No date"
         if label != month:

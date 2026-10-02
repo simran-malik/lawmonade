@@ -112,6 +112,73 @@ def contact_for(it: dict, snap: dict) -> dict | None:
     return who
 
 
+# ---------- the task's responsible person (tab 2: email / text from overdue and due-soon items) ----------
+def _when_text(days: int) -> str:
+    if days < 0:
+        return f"was due {-days} day{'s' if days != -1 else ''} ago"
+    return "is due today" if days == 0 else ("is due tomorrow" if days == 1 else f"is due in {days} days")
+
+
+def reminder(item_what: str, who: dict, client: str, days: int) -> str:
+    """Short reminder a person can edit before sending. Never amounts, never strategy."""
+    when = _when_text(days)
+    if who["kind"] == "staff":
+        hi = f"Hi {_first(who['name'])}, " if _first(who["name"]) else "Hi, "
+        return f"{hi}reminder: \"{item_what}\" on the {client or 'client'} case {when}. Can you update it in Clio today?"
+    return (f"Hello, this is {settings.firm_name}, following up for our client {client or 'our client'}: "
+            f"{item_what} {when}. Could you reply with an update? Thank you.")
+
+
+def responsible(it: dict, snap: dict, days: int) -> dict | None:
+    """Who is responsible for a task or calendar entry, with how to reach them.
+    A task: its assignee in Clio (a firm User, or a Contact). No assignee, or a calendar entry: the case's
+    responsible attorney. Returns {name, role, kind, email, phone, draft, subject} or None."""
+    m = snap.get("matter") or {}
+    client = m.get("client") or ""
+    att = m.get("attorney") or {}
+    if it.get("assignee"):
+        contact = it.get("assignee_type") == "Contact"
+        who = {"name": it["assignee"], "kind": "contact" if contact else "staff",
+               "role": "Assigned in Clio" + (" (contact)" if contact else " (firm staff)"),
+               "email": it.get("assignee_email") or "", "phone": phone(it.get("assignee_phone"))}
+    elif att.get("name") or att.get("email"):
+        who = {"name": att.get("name") or "Responsible attorney", "kind": "staff",
+               "role": "Responsible attorney" + (" (no one assigned in Clio)" if (it.get("kind") or "") == "Task" else ""),
+               "email": att.get("email") or "", "phone": phone(att.get("phone"))}
+    else:
+        return None
+    if "@" not in who["email"]:
+        who["email"] = ""
+    item_what = what(it.get("title"))
+    who["draft"] = reminder(item_what, who, client, days)
+    who["subject"] = f"{'Overdue' if days < 0 else 'Due soon'}: {item_what} ({client or 'case'})"
+    return who
+
+
+def split_urgent(items: list[dict], today: date | None = None, days: int | None = None) -> tuple[list, list, list]:
+    """Tab 2: (overdue, due_soon, rest).
+    overdue  = open tasks whose due day has passed, most overdue first
+    due_soon = open tasks and calendar entries due today .. today + `days` (default DIGEST_URGENT_DAYS = 1), soonest first
+    rest     = everything else, in the order given. Each item in the first two gets "days" (negative = late).
+    Same rules as the digest: done and cancelled entries are never overdue; a past calendar entry is history."""
+    today = today or firm_now().date()
+    end = today + timedelta(days=settings.digest_urgent_days if days is None else days)
+    late, soon, rest = [], [], []
+    for it in items:
+        kind = it.get("kind") or (it.get("src") or {}).get("kind")
+        d = local_date(it.get("date")) if kind in ("Task", "Calendar") else None
+        live = d is not None and not CANCELLED.search(it.get("title") or "") and (kind != "Task" or is_open(it))
+        if live and kind == "Task" and d < today:
+            late.append(it | {"days": (d - today).days})
+        elif live and today <= d <= end:
+            soon.append(it | {"days": (d - today).days})
+        else:
+            rest.append(it)
+    late.sort(key=lambda x: x["days"])
+    soon.sort(key=lambda x: (x["days"], str(x.get("date"))))
+    return late, soon, rest
+
+
 # ---------- statute of limitations ----------
 def sol(snap: dict, today: date) -> dict | None:
     """The SOL date: Clio's matter field if it holds a real date, else a task or calendar entry named for it.
@@ -200,4 +267,4 @@ def urgent(dl: dict) -> list[str]:
     return why
 
 
-__all__ = ["lists", "urgent", "contact_for", "phone", "what", "sol", "nice_date"]
+__all__ = ["lists", "urgent", "contact_for", "responsible", "reminder", "split_urgent", "phone", "what", "sol", "nice_date"]
