@@ -138,14 +138,17 @@ def case_screen(s: dict):
     case_header(s)
     a, b, _ = st.columns([1, 1, 3])
     with a:
-        if s["source"] == "clio" and st.button("Refresh from Clio", use_container_width=True,
-                                                help="Read the latest notes, emails and tasks again"):
-            open_from_clio(ss.query)
-            st.rerun()
+        refresh = s["source"] == "clio" and st.button("Refresh from Clio", use_container_width=True,
+                                                      help="Read the latest notes, emails and tasks again")
     with b:
         if st.button("Open another case", use_container_width=True):
             ss.snap, ss.error = None, None
             st.rerun()
+    if refresh:   # outside the button column, so the progress box uses the full page width
+        _, mid, _ = st.columns([1, 2, 1])
+        with mid:
+            open_from_clio(ss.query)
+        st.rerun()
     if ss.error:
         theme.error_box(*ss.error)
 
