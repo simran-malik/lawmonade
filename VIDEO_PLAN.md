@@ -1,29 +1,33 @@
 # Law-monade: 90-second video plan
 
 Judges: **PI firm owners** (money, clarity) and **Swans engineers** (does it work in a real firm?).
-Rule for every shot: show it working on the real Sapini case, and put one short on-screen label on it.
+Rule for every shot: show it working on the real Sapini case, with one text headline saying what it proves.
 Label colors: 🟦 Feature · 🟪 Differentiator · 🟩 Guarantee · 🟨 Money.
 
-Recording tips: 1440×900 browser window, zoom 110%, mouse moves slowly, no typing on camera
-(pre-fill the search box). Record each shot as its own clip and cut them together; the voiceover is
-about 210 words, read at a normal pace.
+No voiceover: the on-screen text tells the story. Each shot gets one **headline** (top of the
+screen, the point being shown) and up to two small **tags** (next to the thing on screen).
+Headlines stay 6-9 words so they can be read in 2-3 seconds; each stays up for the whole shot.
+
+Recording tips: 1440×900 browser window, zoom 110%, mouse moves slowly, pause ~2 s on each thing
+being shown, no typing on camera (pre-fill the search box). Silent screen recording is fine; I add a
+quiet music bed only if you want one.
 
 ---
 
 ## Shot list
 
-| Time | On screen (clicks) | On-screen label | Voiceover |
+| Time | On screen (clicks) | Headline (top) | Tags (next to the item) |
 |---|---|---|---|
-| **0:00–0:06** | Title card over a blurred Clio matter with 160+ entries | 🟨 *"$38K–$465K/yr of attorney + paralegal time at a 100–300 case firm"* | "A PI attorney opens a case with 160 entries in Clio. Getting up to speed takes an hour, or a colleague's time." |
-| **0:06–0:12** | Type nothing; click **Open case from Clio** → progress steps → **LIVE FROM CLIO · READ-ONLY** badge | 🟩 *Live Clio data · read-only, never writes* | "Law-monade reads the live case from Clio. Read-only: it can't change anything." |
-| **0:12–0:22** | **Case brief** tab: money cards (value $375K vs $100K coverage, $22,180 lien), case summary | 🟦 *At-a-glance case brief* · 🟨 *Value vs coverage in one look* | "In two minutes: what the case is worth, the coverage behind it, and the liens that come off the top." |
-| **0:22–0:30** | Scroll up to **What could hurt this case**: McCulloch records 38 days overdue (red); wage records overdue, $214K claim depends on it | 🟪 *Risk detection by case stage* | "It flags what could hurt the case: a records request 38 days overdue, and a $214K wage claim waiting on missing paperwork." |
-| **0:30–0:40** | Click an amber card's **Review** link → pop-up with the exact Clio quote + link → click **Looks good** → card turns green "Reviewed by <name>" | 🟩 *Provenance: every number links to its source* · 🟩 *Not over-confident: amber = a person checks* · 🟩 *Logged: who approved what* | "Every number shows where it came from. When the AI isn't sure, it says so and asks a person. Approvals are logged by name." |
-| **0:40–0:48** | **Everything, by date** tab: Overdue + Due today sections, then scroll the full list; type in search | 🟦 *Dual mode: 2-minute brief ↔ every entry, by date* | "Need more? Switch to everything in the file, by date, searchable, each line linked to its source." |
-| **0:48–0:56** | On an overdue item: **Send email** / **Send text (Twilio)** draft → send; **Add to calendar** | 🟪 *Comms: email · text for urgent external contacts* | "Overdue item? Email or text the provider right from the line, and put it on the calendar." |
-| **0:56–1:08** | **Daily digest** → **Preview digest** → Email tab (risks, overdue, what changed) → Slack tab (counts only) | 🟪 *Daily digest: email every weekday, Slack only when urgent* · 🟩 *Slack shows counts, no case details* | "Every morning the attorney gets a digest by email. Slack pings only when something is urgent, and only with counts, never client details." |
-| **1:08–1:22** | **Share with a provider** tab: pick McCulloch → tick sections → bill shown as a range → **Approve, create secure link and email it** → open link in new tab (provider's read-only page) → back: "opened 1 time" | 🟦 *Provider portal: one secure, expiring link* · 🟩 *Privacy-first: firm picks exactly what's shared* · 🟦 *Paper trail: every share + view logged* | "Providers keep calling to ask where the case is. Now the attorney picks exactly what they see, approves it, and sends one expiring link. Every share and every view is logged, so there's a paper trail instead of phone tag." |
-| **1:22–1:30** | End card: logo, 3 guarantee chips, the money line | 🟩 *Provenance · Human review · Privacy-first* · 🟨 *$38K–$465K/yr* | "Law-monade: up to speed in two minutes, nothing invented, nothing shared without your say." |
+| **0:00–0:06** | Title card over a blurred Clio matter with 160+ entries | **160+ entries. One hour to catch up. Every case.** | 🟨 $38K–$465K/yr of time back at a 100–300 case firm |
+| **0:06–0:12** | Click **Open case from Clio** → progress steps → **LIVE FROM CLIO · READ-ONLY** badge | **Reads the live case straight from Clio** | 🟩 Read-only: never changes Clio |
+| **0:12–0:22** | **Case brief** tab: money cards (value $375K vs $100K coverage, $22,180 lien), case summary | **The whole case at a glance, in 2 minutes** | 🟦 At-a-glance brief · 🟨 Value vs coverage vs liens |
+| **0:22–0:30** | **What could hurt this case**: McCulloch records 38 days overdue (red); $214K wage claim waiting on overdue records | **Flags what could hurt the case, before it does** | 🟪 Risk detection by case stage |
+| **0:30–0:40** | Amber card → **Where does this come from?** → Clio quote + link → **Looks good** → green "Reviewed by <name>" | **Every number shows its source** | 🟩 Amber = not sure, a person checks · 🟩 Every approval logged by name |
+| **0:40–0:48** | **Everything, by date** tab: Overdue + Due today, scroll, search | **Need more? Every entry, by date, searchable** | 🟦 Dual mode: brief ↔ full file |
+| **0:48–0:56** | Overdue item: **Send email** / **Send text (Twilio)** → send | **Chase overdue items in one click** | 🟪 Email · Text for urgent outside contacts |
+| **0:56–1:08** | **Preview digest** → Email tab (risks, overdue, what changed) → Slack tab | **A daily digest, so nothing slips** | 🟪 Email every weekday · Slack only when urgent · 🟩 Slack shows counts, no client details |
+| **1:08–1:22** | **Share with a provider**: pick McCulloch → tick items → bill as a range → **Approve, create secure link and email it** → open link → back: "opened 1 time" | **Providers get answers without calling the firm** | 🟩 Firm picks exactly what's shared · 🟦 One expiring link · 🟦 Every share + view logged = paper trail |
+| **1:22–1:30** | End card | **Law-monade: up to speed in 2 minutes** | 🟩 Provenance · Human review · Privacy-first · 🟨 $38K–$465K/yr |
 
 ---
 
