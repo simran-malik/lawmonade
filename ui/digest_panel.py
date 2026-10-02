@@ -25,7 +25,7 @@ def last_line(mid) -> str:
     r = store.last_digest(mid)
     if not r:
         return '<span class="muted">No digest sent for this case yet. The schedule sends one every weekday morning.</span>'
-    who = "the morning schedule" if r["trigger"] == "scheduled" else (r["actor"] or "someone")
+    who = "the morning schedule" if r["trigger"] == "scheduled" else (r["actor"] or "the Send button")
     when = digest.local_time(r.get("finished_at") or r["started_at"])
     if r["status"] == "running":
         return f"Sending now (started {esc(when)})…"
@@ -113,7 +113,7 @@ def preview_dialog(s: dict, lien_analysis: dict, risk_report: dict | None = None
 @st.dialog("Send today's digest", width="large")
 def send_dialog(s: dict, lien_analysis: dict, risk_report: dict | None = None):
     mid = s["matter"]["id"]
-    who = (ss.get("who") or ss.get("who_dlg") or "").strip()
+    who = (ss.get("who") or "").strip()                    # optional "Reviewing as" name, only for the audit log
     res_key = f"digest_result_{mid}"
     if ss.get(res_key):                                     # already sent from this pop-up: show the result
         r = ss[res_key]
@@ -122,9 +122,6 @@ def send_dialog(s: dict, lien_analysis: dict, risk_report: dict | None = None):
             ss.pop(res_key, None)
             st.rerun()
         return
-    if not who:
-        st.text_input("Your name (saved with the send)", key="who_dlg", placeholder="e.g. Sam Lee")
-        who = (ss.get("who_dlg") or "").strip()
     p = _preview(s, lien_analysis, risk_report)
     if p["status"] == "preview":
         urgent = bool(p["slack"]["text"])
@@ -137,8 +134,8 @@ def send_dialog(s: dict, lien_analysis: dict, risk_report: dict | None = None):
     if force:
         st.warning(ss.get(f"digest_confirm_msg_{mid}", "A digest was just sent. Send another one?"))
     label = "Yes, send again" if force else "Send now"
-    if st.button(label, type="primary", use_container_width=True, disabled=not who or ss.get("digest_busy", False),
-                 help=None if who else "Type your name first"):
+    if st.button(label, key="digest_send_confirm", type="primary", use_container_width=True,
+                 disabled=ss.get("digest_busy", False)):
         ss["digest_busy"] = True                            # one click = one send, even if clicked twice
         try:
             with st.spinner("Sending…"):
