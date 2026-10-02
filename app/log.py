@@ -9,15 +9,25 @@ Level: LOG_LEVEL in .env, or  bash run.sh ui --log-level DEBUG
 Never log API keys, tokens, document text or full email addresses. The filter below masks
 the common ones anyway, as a safety net.
 """
+import contextvars
 import logging
 import re
+import secrets
 import sys
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 
 ROOT = "lawmonade"
-FORMAT = "%(asctime)s %(levelname)-7s %(name)s  %(message)s"
+FORMAT = "%(asctime)s %(levelname)-7s %(run_id)s %(name)s  %(message)s"
+_RUN = contextvars.ContextVar("run_id", default="-")
+
+
+def new_run() -> str:
+    """Start a new run id (e.g. one case load) so all its log lines can be found together."""
+    rid = secrets.token_hex(3)
+    _RUN.set(rid)
+    return rid
 
 # (pattern, replacement). Order matters: specific patterns first.
 _MASKS: list[tuple[re.Pattern, str]] = [
@@ -46,10 +56,11 @@ def short(secret: str, keep: int = 6) -> str:
 
 
 class RedactFilter(logging.Filter):
-    """Applies redact() to every record that reaches our handler (ours and libraries')."""
+    """Applies redact() to every record that reaches our handler (ours and libraries'), and adds the run id."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         record.msg, record.args = redact(record.getMessage()), None
+        record.run_id = getattr(record, "run_id", None) or _RUN.get()
         return True
 
 

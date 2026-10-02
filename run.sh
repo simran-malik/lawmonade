@@ -16,6 +16,7 @@ Commands
   provider                  provider portal http://localhost:8502   (the only page providers reach)
   api                       API             http://localhost:8000/docs
   config                    show the settings this run would use (secrets hidden)
+  purge --matter ID [--with-cache]   delete what we keep about one case (retention; 'sample' resets the demo)
   up                        start API + dashboard + n8n in the background (logs in logs/)
   stop [--docker]           stop everything (add --docker to also quit Docker Desktop)
   status                    show what is running
@@ -133,6 +134,7 @@ case "$cmd" in
   provider)  uv run streamlit run ui/provider_app.py --server.port "${PORT:-8502}" ;;
   api)       uv run uvicorn app.main:app --reload --port "${PORT:-8000}" ;;
   config)    uv run python scripts/show_config.py ;;
+  purge)     uv run python scripts/purge.py ${PASS[@]+"${PASS[@]}"} ;;
   templates) uv run python scripts/make_templates.py ;;
   gmail)     uv run python -m app.emailer ;;
   n8n)       docker rm -f n8n >/dev/null 2>&1 || true; docker run -it --rm --name n8n $N8N_RUN ;;

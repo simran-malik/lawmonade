@@ -5,6 +5,7 @@ load_steps(query) -> (state, [(step label, function), ...])
     When all have run, state["snapshot"] holds the case in our shape (see app/snapshot.py).
 """
 import json
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import quote
 
 import requests
@@ -223,11 +224,20 @@ def load_steps(query: str, matter_id=None):
                             "src": src(W, "Document", d["id"], f"Document · {d.get('name', '')}")}
                            for d in _get_all("documents.json", {"matter_id": mid},
                                              ["id,name,received_at,created_at,parent{name}", "id,name,created_at"])]
+        # Ask for the email in the same request (1 call instead of 1 per contact); if Clio rejects that
+        # field list, fall back and fetch the missing emails a few at a time.
+        rels = _get_all("relationships.json", {"matter_id": mid},
+                        ["id,description,contact{id,name,primary_email_address}", "id,description,contact{id,name}",
+                         "id,description"])
+        missing = [(r.get("contact") or {}).get("id") for r in rels
+                   if (r.get("contact") or {}).get("id") and "primary_email_address" not in (r.get("contact") or {})]
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            extra = dict(zip(missing, pool.map(contact_email, missing)))
         people = []
-        for r in _get_all("relationships.json", {"matter_id": mid}, ["id,description,contact{id,name}", "id,description"]):
+        for r in rels:
             c = r.get("contact") or {}
-            people.append({"id": r["id"], "contact_id": c.get("id"), "name": _name(c),
-                           "role": r.get("description", ""), "email": contact_email(c.get("id"))})
+            people.append({"id": r["id"], "contact_id": c.get("id"), "name": _name(c), "role": r.get("description", ""),
+                           "email": c.get("primary_email_address") or extra.get(c.get("id"), "")})
         st["contacts"] = people
 
     def assemble():

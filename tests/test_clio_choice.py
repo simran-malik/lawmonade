@@ -31,3 +31,16 @@ def test_picked_case_opens(monkeypatch):
     st, steps = clio.load_steps("Smith", matter_id=2)
     steps[0][1]()
     assert st["matter"]["client"] == "Bob Smith"
+
+
+def test_contact_emails_come_in_one_request(monkeypatch):
+    monkeypatch.setattr(settings, "clio_access_token", "t")
+    rels = [{"id": 1, "description": "Treating provider", "contact": {"id": 7, "name": "Acme PT",
+                                                                     "primary_email_address": "a@acme.test"}}]
+    monkeypatch.setattr(clio, "_get_all", lambda path, params, fields: rels if path == "relationships.json" else [])
+    called = []
+    monkeypatch.setattr(clio, "contact_email", lambda cid: called.append(cid) or "")
+    st, steps = clio.load_steps("x")
+    st["matter"] = {"id": 1}
+    dict((label, fn) for label, fn in steps)["Reading documents and contacts"]()
+    assert st["contacts"][0]["email"] == "a@acme.test" and called == []

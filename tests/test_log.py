@@ -45,3 +45,10 @@ def test_setup_is_idempotent_and_filter_redacts(capsys):
     rec = logging.LogRecord("lawmonade.t", logging.INFO, __file__, 1, "token=%s", ("supersecret",), None)
     ours[0].filter(rec)
     assert rec.getMessage() == "token=***"
+
+
+def test_run_id_is_added_to_every_line():
+    rid = log.new_run()
+    rec = logging.LogRecord("lawmonade.t", logging.INFO, __file__, 1, "hello", None, None)
+    log.RedactFilter().filter(rec)
+    assert rec.run_id == rid and len(rid) == 6

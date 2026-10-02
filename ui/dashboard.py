@@ -29,6 +29,7 @@ ss.setdefault("choices", None)
 def open_from_clio(query: str, matter_id=None):
     from app.clio import ClioChoice, ClioError, load_steps
     ss.error, ss.choices = None, None
+    log.new_run()                      # every log line of this load shares one run id
     state, steps = load_steps(query, matter_id)
     try:
         theme.run_steps(steps, title=f'Opening "{query}" from Clio')

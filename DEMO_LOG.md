@@ -51,8 +51,8 @@ Limits of this count:
 | Area | Limitation | Why it's OK for the demo |
 |---|---|---|
 | Link access | Anyone holding the link can open it until it expires (e.g. a forwarded email) | Short expiry, turn off anytime, every view logged |
-| Hosting | Runs on `localhost` over plain http; links only open on this laptop | Demo runs on one machine; real use needs hosting (see future scope) |
-| Key storage | Keys are stored as-is in the database | Database is local and not in git |
+| Hosting | Runs on `localhost` over plain http; links only open on this laptop | Demo runs on one machine. Providers get a separate app (`bash run.sh provider`, port 8502) that can only show approved shares; only that port would ever go online, the firm dashboard (8501) stays internal |
+| Key storage | Keys are stored as-is in the `shares` table (the audit log stores only a hash of each key) | Database is local and not in git |
 | Brute force | No limit on repeated wrong keys | Keys can't realistically be guessed |
 | Unused setting | `SHARE_LINK_SECRET` is set but not used yet | Planned for signed links |
 | Open tracking | Counts page opens, not who opened; scanners may count as opens | Clearly labeled "opened", not "read by" |
@@ -70,6 +70,13 @@ Limits of this count:
 - Store only a scrambled (hashed) version of each key, so a stolen database reveals no working links.
 - Sign links with `SHARE_LINK_SECRET`; block an address after too many wrong keys.
 - Host with https on a firm-approved server, with signed agreements for handling medical information.
+
+**Production path (system design)**
+- **Users and roles:** real sign-in (SSO) instead of the "Reviewing as" name, so every approval in the append-only audit log is tied to a person; per-user Clio OAuth so Law-monade only sees what that person can see in Clio (today one firm-wide read-only token).
+- **Clio sign-in expiry:** use the stored refresh token to renew the access token on a 401 and retry once, so overnight digests keep working.
+- **Medical data at rest:** encrypt snapshots, the AI cache and the database; before real client data goes to an AI vendor, a zero-retention / BAA-type agreement with that vendor. Retention is already one command (`bash run.sh purge --matter ID`).
+- **Scale:** a background sync with Clio's `updated_since` (and Clio webhooks) instead of loading a case on click; run the Clio reading steps in parallel. Snapshots are already per case and dated, and the brief is one function (`app/brief.py`) behind both the dashboard and `GET /matters/{id}/brief`.
+- **Database:** SQLite (WAL, numbered migrations) is right for one office; the same tables move to Postgres for a multi-office firm.
 
 **Clio integration (needs write permission)**
 - Log each share and email on the Clio matter as a communication, so the official case file stays complete.
@@ -101,3 +108,11 @@ Limits of this count:
 | 13:00 | People can correct a money card; saved in our DB (card_edits + audit), Clio never changed; card shows "Edited", keeps the Clio number, warns if Clio changes later | Read-only rule; numbers in free text are sometimes wrong |
 | 13:15 | Lien card: AI sorts the lien field into lien / paid benefit / pending / defense offset; code checks each quote and amount against the Clio text, adds up only checked liens, and counts other Clio items with the same amount | Taking every $ amount would count the $50,000 exhausted no-fault as a lien; one small cached call per case; falls back to the plain reading if the AI is unavailable |
 | 13:25 | Every money card has a review status saved in our DB (card_reviews): needs review / approved / corrected / no review needed. "Looks good" approves that exact number; a new number needs a new look. Source details are behind "Where this comes from" with Looks good / Something wrong? | Make the cards that need a person obvious, keep the rest quiet, and keep a record of who checked what |
+| 13:35 | Provider portal is its own app (`ui/provider_app.py`, port 8502); `PUBLIC_URL` points there | One app for firm + providers meant putting the link online also put the firm dashboard online |
+| 13:35 | Several Clio cases match a search -> a person picks one | Opening the first match could show the wrong client's case |
+| 13:35 | Task notes are not shared unless ticked per task; the billed amount is never stored in a share | Task notes can hold strategy; keep only what the provider sees |
+| 13:40 | AI calls a person waits on stop after 20 s (`LLM_UI_TIMEOUT_S`) and the card shows the plain reading | A slow AI froze the brief for 2-4 minutes |
+| 13:40 | Lien quote check matches whole words; amounts understand $100k / $1.2M; "100/300" limits are flagged | A cut-off quote ("$22") could pass the check; PI limits are often written in shorthand |
+| 13:45 | SQLite: numbered migrations, WAL, append-only audit (triggers) with an actor column, share keys hashed in the audit | Upgrade the DB in place, allow concurrent use, and keep a trustworthy record |
+| 13:50 | `app/brief.py` builds the brief for the dashboard and `GET /matters/{id}/brief`; drawing it never writes; approvals record the snapshot seen | One brain, two front ends; no hidden writes |
+| 13:50 | Dated snapshots (`SNAPSHOT_KEEP`), field names per firm in `config/fields.yaml`, `bash run.sh purge`, run id on every log line | "What changed", onboarding a new firm, retention, and tracing one case load |

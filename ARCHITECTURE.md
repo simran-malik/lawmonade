@@ -40,18 +40,20 @@ flowchart LR
   end
 
   subgraph UI["ui/ (Streamlit)"]
-    DASH["dashboard.py<br/>brief, timeline, share tabs"]
-    PROV["provider_view.py<br/>?share=token page"]
+    DASH["dashboard.py :8501<br/>firm only, internal"]
+    PROV["provider_app.py :8502<br/>providers: approved shares only"]
   end
+  BRIEF["brief.py<br/>one case brief"]
 
   CLIO -->|"GET + retry"| LOADER
   RETRY -.-> LOADER
   LOADER --> SNAP
   SAMPLE --> SNAP
   SNAP <--> JSON
-  SNAP --> DASH
+  SNAP --> BRIEF --> DASH
+  BRIEF --> API
   JSON -->|"Clio down: saved copy"| DASH
-  DASH --> KPIS
+  BRIEF --> KPIS
   DASH --> SHARE --> DB
   SHARE --> EMAIL
   RETRY -.-> EMAIL
@@ -63,7 +65,7 @@ flowchart LR
   LLM --> MOCK
   CLAUDE --> USAGE
   GEMINI --> USAGE
-  API["main.py<br/>FastAPI"] --> LLM
+  API["main.py<br/>FastAPI /matters/id/brief"] --> LLM
   N8N["n8n<br/>schedules, Slack"] --> API
 ```
 
@@ -76,9 +78,10 @@ Each component can be swapped, can be tested on its own, and is configured from 
 | Component | Input → Output | Can be swapped for | Config | Tests |
 |---|---|---|---|---|
 | `clio.py` loader | matter search → snapshot, in 5 progress steps | sample file, another case system (Filevine, …) | `CLIO_*` | `test_clio_links`, `test_retry` |
-| `snapshot.py` | Clio or sample data → one case shape; save/load JSON; find a saved copy | SQLite/Postgres store | `SNAPSHOT_DIR`, `DEMO_FILE` | `test_snapshot_fallback` |
-| `kpis.py` | snapshot → money cards, each with source + Exact/Calculated/Check | — | — | `test_kpis` |
-| `share.py` + `store.py` | snapshot + attorney choices → frozen share, 24-byte token, expiry | signed links (`SHARE_LINK_SECRET`) | `SHARE_LINK_DAYS`, `PUBLIC_URL` | `test_share`, `test_store` |
+| `snapshot.py` | Clio or sample data → one case shape; latest + dated copies (`SNAPSHOT_KEEP`); find a saved copy; purge | SQLite/Postgres store | `SNAPSHOT_DIR`, `DEMO_FILE` | `test_snapshot_fallback` |
+| `brief.py` | snapshot → cards (+ corrections, review status), lien status, counts; never writes | — | — | `test_brief` |
+| `kpis.py` | snapshot → money cards, each with source + Exact/Calculated/Check | — | `config/fields.yaml` (field names per firm) | `test_kpis` |
+| `share.py` + `store.py` | snapshot + attorney choices → frozen share (task notes opt-in, range not billed amount), 24-byte token, expiry; SQLite with numbered migrations, WAL, append-only audit | Postgres; signed links | `SHARE_LINK_DAYS`, `PUBLIC_URL` (provider portal) | `test_share`, `test_store` |
 | `emailer.py` | to, subject, text → sent email (link only, never case details) | SMTP, SendGrid | `EMAIL_*`, `SMTP_*` | — |
 | `llm.py` | prompt (+ Pydantic schema) → text or a checked object | any provider with JSON output | `--llm anthropic\|gemini\|mock`, `--model` | `test_llm_mock` |
 | `llm_cache.py` | (provider, model, schema, prompt) → saved answer | Redis | `--cache on\|off\|only` | `test_llm_cache` |
@@ -86,7 +89,7 @@ Each component can be swapped, can be tested on its own, and is configured from 
 | `retry.py` | function + "safe to repeat?" → result, or the original error | `tenacity` | defaults in code (3 tries, 10 s cap) | `test_retry` |
 | `log.py` | events → one line per stage, secrets masked | JSON logs → Datadog etc. | `--log-level` | `test_log` |
 | `grounding.py` | AI quote + page words → verified / needs_review / hallucination | — | `--ocr-threshold` | `test_smoke` |
-| `ui/` | snapshot → screens; `?share=token` → provider page | any front end (reads the same snapshot) | `--port` | manual |
+| `ui/` | dashboard (firm, :8501) and provider portal (:8502, approved shares only) | any front end (calls `brief.build`) | `--port` | manual |
 | `main.py` + n8n | HTTP → app functions; schedules → Slack | cron | `SLACK_WEBHOOK_URL` (env only) | `/health` |
 
 ## Reliability
@@ -101,20 +104,26 @@ Each component can be swapped, can be tested on its own, and is configured from 
 
 **When something fails:**
 - **Clio unreachable or token expired:** the screen shows the newest copy saved from Clio and how old it is. If there's none, it offers the sample case. The error message always says what to do next.
+- **AI slow:** calls a person waits on stop after 20 s (`LLM_UI_TIMEOUT_S`); the lien card shows the plain reading.
 - **AI unavailable:**
   - `--cache only` replays saved answers with no network (the offline demo).
   - `--llm mock` uses fixtures, with no key needed.
 - **Bad input:** Clio field lists fall back to simpler ones if Clio rejects a field. Snapshot and cache files are written with temp file + rename, so a crash never leaves half a file.
 
+**Security boundaries:**
+- Providers reach only `ui/provider_app.py` (port 8502), which reads frozen, approved shares and nothing else. The firm dashboard (8501) stays internal.
+- A search matching several Clio cases asks a person to pick; it never opens the first one.
+- The audit log is append-only (SQLite triggers), records the actor, and stores a hash of each share key, never the key.
+
 ## Logging
 
-`app/log.py`. Set the level with `--log-level DEBUG|INFO|WARNING|ERROR` (or `LOG_LEVEL` in `.env`). Each stage logs one line:
+`app/log.py`. Set the level with `--log-level DEBUG|INFO|WARNING|ERROR` (or `LOG_LEVEL` in `.env`). Each stage logs one line, with a run id shared by every line of one case load:
 
 ```
-12:41:03 INFO    lawmonade.clio   [clio.notes] 1.1s, notes=42, communications=69
-12:41:09 INFO    lawmonade.llm    [llm] 4.2s, schema=Digest, provider=anthropic, cache=miss
-12:41:09 INFO    lawmonade.llm    [llm.usage] anthropic claude-sonnet-5-5 in=8123 out=940 cost=$0.0xx
-12:41:20 WARNING lawmonade.retry  [retry] clio GET: status 503, try 2/3 in 0.5s
+12:41:03 INFO    a3f9c1 lawmonade.clio   [clio.notes] 1.1s, notes=42, communications=69
+12:41:09 INFO    a3f9c1 lawmonade.llm    [llm] 4.2s, schema=LienBreakdown, provider=anthropic, cache=miss
+12:41:09 INFO    a3f9c1 lawmonade.llm    [llm.usage] anthropic claude-sonnet-5-5 in=812 out=240 cost=$0.0xx
+12:41:20 WARNING a3f9c1 lawmonade.retry  [retry] clio GET: status 503, try 2/3 in 0.5s
 ```
 
 **Never logged:** API keys, OAuth tokens, share tokens, document or note text, full email addresses. As a safety net, a filter on the handler masks `sk-ant-…`, `Bearer …`, `Basic …`, Slack webhook URLs, `token=`/`share=`/`secret=` values and email names.
