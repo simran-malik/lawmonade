@@ -104,12 +104,12 @@ div[class*="st-key-lmcard_needs_review_"] {{ border: 2px solid {AMBER}; backgrou
 [data-testid="stColumn"]:has(div[class*="st-key-lmcard_"]) > div {{ height: 100%; }}
 .lm-card-in {{ display: flex; flex-direction: column; gap: 0.35rem; }}
 div[class*="st-key-srclink_"] {{ margin-top: auto; border-top: 1px dashed {LINE}; padding-top: 0.35rem; }}
-div[class*="st-key-srclink_"] .stButton > button {{ background: none !important; border: none !important; box-shadow: none !important;
+div[class*="st-key-srclink_"] .stButton button {{ background: none !important; width: auto; border: none !important; box-shadow: none !important;
     min-height: 0 !important; padding: 0.15rem 0 !important; color: #175CD3 !important; text-decoration: underline;
     text-underline-offset: 3px; font-weight: 600; justify-content: flex-start; }}
-div[class*="st-key-srclink_"] .stButton > button p {{ font-size: 1rem !important; color: #175CD3 !important; }}
-div[class*="st-key-srclink_"] .stButton > button:hover p {{ color: #0B4A9E !important; }}
-div[class*="st-key-lmcard_needs_review_"] div[class*="st-key-srclink_"] .stButton > button p {{ font-weight: 700; }}
+div[class*="st-key-srclink_"] .stButton button p {{ font-size: 1rem !important; color: #175CD3 !important; }}
+div[class*="st-key-srclink_"] .stButton button:hover p {{ color: #0B4A9E !important; }}
+div[class*="st-key-lmcard_needs_review_"] div[class*="st-key-srclink_"] .stButton button p {{ font-weight: 700; }}
 .lm-digest {{ border: 1px solid {LINE}; border-left: 6px solid {NAVY}; border-radius: 12px; padding: 0.7rem 1rem;
     margin: 0.2rem 0 0.6rem; font-size: 0.98rem; }}
 .lm-digest b {{ color: {NAVY}; }}
