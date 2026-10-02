@@ -71,18 +71,21 @@ def is_medical(e: dict) -> bool:
 
 
 def lien_card(snap: dict, a: dict, lname: str, W: str) -> dict:
-    """Lien card from the AI breakdown (app/liens.py). Only checked liens are added up; the rest are listed."""
+    """Lien card from the AI breakdown (app/liens.py). Only checked liens are added up; the rest are listed.
+    groups = rows shown on the card: "Counted as liens" and "Not counted"."""
     link = clio_link(snap, lname)
     liens = [i for i in a["items"] if i["kind"] == "lien" and i["checked"] and i["amount"] is not None]
     others = [i for i in a["items"] if i["kind"] != "lien" and i["checked"]]
     unchecked = a.get("unchecked", [])
-    sub = " · ".join(f"{i['holder']} {usd(i['amount'])}" for i in liens) or "No lien amount in this field"
-    if others:
-        sub += ". Not counted: " + ", ".join(
-            f"{i['holder']}" + (f" {usd(i['amount'])}" if i["amount"] is not None else "") + f" ({i['status']})"
-            for i in others)
+    row = lambda i, note: {"name": i["holder"], "amount": usd(i["amount"]) if i["amount"] is not None else "", "note": note}
+    groups = [{"title": "Counted as liens", "rows": [row(i, i["status"]) for i in liens], "muted": False},
+              {"title": "Not counted", "rows": [row(i, i["kind_label"] if i["status"].lower() in i["kind_label"].lower()
+                                                      else f"{i['kind_label']} · {i['status']}") for i in others],
+               "muted": True}]
+    groups = [g for g in groups if g["rows"]]
     norep = [i for i in liens if not i["repeats"]]
     n_rep = len({r["label"] for i in liens for r in i["repeats"]})
+    sub = ""
     if unchecked:
         sure, warn = ("check", "Check"), True
         why = (f"Left out {len(unchecked)} item(s) the AI read that don't match the Clio text: "
@@ -94,7 +97,7 @@ def lien_card(snap: dict, a: dict, lname: str, W: str) -> dict:
         why = "Only stated in this field; no note or email repeats it: " + ", ".join(i["holder"] for i in norep) + "."
     else:
         sure, warn, why = ("ai", "AI-sorted · checked"), False, ""
-        sub += f". Same amount in {n_rep} other Clio item{'s' if n_rep != 1 else ''}."
+        sub = f"Same amount in {n_rep} other Clio item{'s' if n_rep != 1 else ''}."
     items = [{"text": f"{i['kind_label']} · {i['holder']} · {usd(i['amount'])} · {i['status']} — “{i['quote']}”"
                       + ("" if i["checked"] else " ⚠ not in the Clio text, left out"),
               "url": (link or {}).get("url", "")} for i in a["items"]]
@@ -105,9 +108,8 @@ def lien_card(snap: dict, a: dict, lname: str, W: str) -> dict:
                 seen.add(r["label"])
                 items.append({"text": f"Also says {usd(i['amount'])}: {r['label']}", "url": r.get("url", "")})
     return dict(key="lien", amount=a["total"], link=link, label="Liens asserted", value=usd(a["total"]), sub=sub,
-                source=f"{W} field “{lname}” · sorted by AI, checked by code", sure=sure, why=why, warn=warn,
-                items=items)
-
+                groups=groups, source=f"{W} field “{lname}” · sorted by AI, checked by code", sure=sure, why=why,
+                warn=warn, items=items)
 
 def kpis(snap: dict, liens: dict | None = None) -> list[dict]:
     """liens = app.liens.analyze(snap) result; without it (or if the AI failed) the lien card reads the first amount."""
@@ -130,7 +132,7 @@ def kpis(snap: dict, liens: dict | None = None) -> list[dict]:
     cov = amounts(cov_text)
     first = cov[0] if cov else None
     gap = (value - first) if (value is not None and first is not None) else None
-    sub = first_line(cov_text) + (" · limits confirmed" if ok in (True, "true", "True", 1) else "")
+    sub = str(cov_text or "").strip() + ("\nLimits confirmed" if ok in (True, "true", "True", 1) else "")
     why = "Read from free text with several limits listed. Check which applies." if len(cov) > 1 else ""
     if gap and gap > 0:
         why = f"Case is worth {usd(gap)} more than this limit. " + why
@@ -204,4 +206,39 @@ def apply_edits(cards: list[dict], edits: dict) -> list[dict]:
             why += f" Clio has changed since this edit (was {usd(e.get('clio_value'))}). Check it."
             k["warn"] = True
         k["why"] = why
+    return cards
+
+
+# ---------- human review ----------
+REVIEW = {  # status -> words on the card
+    "needs_review": "Needs your review",
+    "approved": "Approved",
+    "corrected": "Corrected",
+    "not_required": "No review needed",
+}
+
+
+def same(a, b) -> bool:
+    return (a is None and b is None) or (a is not None and b is not None and abs(float(a) - float(b)) < 0.005)
+
+
+def apply_reviews(cards: list[dict], reviews: dict) -> list[dict]:
+    """Give each card a review status. reviews = app.store.card_reviews() (what people approved before).
+      corrected     a person saved a fix (app.store.card_edits); needs review again if Clio changed since
+      approved      a person clicked "Looks good" on this same number (a new number needs a new look)
+      needs_review  the number is tagged Check (read from free text, missing, or failed a check)
+      not_required  Exact, Calculated, or AI-sorted and passed every check"""
+    for k in cards:
+        r = reviews.get(k["key"]) or {}
+        if k.get("edited"):
+            e = k["edited"]
+            status = "needs_review" if k.get("warn") else "corrected"
+            k["review"] = {"status": status, "by": e.get("edited_by", ""), "at": e.get("edited_at", "")}
+        elif r.get("status") == "approved" and same(r.get("value"), k["amount"]):
+            k["review"] = {"status": "approved", "by": r.get("by", ""), "at": r.get("at", "")}
+        elif k["sure"][0] == "check":
+            k["review"] = {"status": "needs_review", "by": "", "at": ""}
+        else:
+            k["review"] = {"status": "not_required", "by": "", "at": ""}
+        k["review"]["label"] = REVIEW[k["review"]["status"]]
     return cards

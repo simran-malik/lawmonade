@@ -42,3 +42,11 @@ def test_card_edits(tmp_path, monkeypatch):
     assert e["value"] == 22000 and e["clio_value"] == 22180 and e["edited_by"] == "Sam"
     store.clear_card_edit("m1", "lien")
     assert store.card_edits("m1") == {}
+
+
+def test_card_reviews(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "db_path", tmp_path / "t.db")
+    store.set_card_review("m1", "lien", "needs_review", 22180)
+    store.set_card_review("m1", "lien", "approved", 22180, "Sam")
+    r = store.card_reviews("m1")["lien"]
+    assert r["status"] == "approved" and r["by"] == "Sam" and r["value"] == 22180

@@ -1,5 +1,5 @@
 """Money numbers: done by code, with sources. No keys needed."""
-from app.kpis import amounts, apply_edits, is_medical, kpis
+from app.kpis import amounts, apply_edits, apply_reviews, is_medical, kpis
 
 SNAP = {
     "source": "sample",
@@ -49,3 +49,16 @@ def test_edit_shows_new_number_and_keeps_clio_number():
     e2 = {**e, "clio_value": 90000.0}                            # Clio changed after the edit
     c2 = {x["key"]: x for x in apply_edits(kpis(SNAP), {"coverage": e2})}["coverage"]
     assert c2["warn"] and "changed since" in c2["why"]
+
+
+def test_review_status():
+    ks = {k["key"]: k for k in apply_reviews(kpis(SNAP), {})}
+    assert ks["lien"]["review"]["status"] == "needs_review"          # read from free text
+    assert ks["case_value"]["review"]["status"] == "not_required"    # copied from a Clio field
+    ok = {"lien": {"status": "approved", "value": 22180.0, "by": "Sam", "at": "x"}}
+    assert {k["key"]: k for k in apply_reviews(kpis(SNAP), ok)}["lien"]["review"]["status"] == "approved"
+    old = {"lien": {"status": "approved", "value": 9.0, "by": "Sam", "at": "x"}}   # approved a different number
+    assert {k["key"]: k for k in apply_reviews(kpis(SNAP), old)}["lien"]["review"]["status"] == "needs_review"
+    e = {"value": 1.0, "note": "", "edited_by": "Sam", "edited_at": "x", "clio_value": 22180.0}
+    fixed = {k["key"]: k for k in apply_reviews(apply_edits(kpis(SNAP), {"lien": e}), {})}["lien"]
+    assert fixed["review"]["status"] == "corrected" and fixed["review"]["by"] == "Sam"

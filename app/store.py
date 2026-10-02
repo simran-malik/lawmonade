@@ -5,6 +5,7 @@ Tables
   share_views  each time a share link is opened ("has anyone in their office opened it?")
   last_opened  when each user last opened each matter ("what changed since I last opened it?")
   card_edits   a person's correction to a money card on the brief (Clio is never changed)
+  card_reviews review status of each money card: needs_review | approved | corrected | not_required
   audit        who did what, when (pattern taken from hack/app/store.py)
 
 Clio snapshots and AI digests are JSON files in data/matters/, not here.
@@ -36,6 +37,9 @@ def _db() -> sqlite3.Connection:
         CREATE TABLE IF NOT EXISTS card_edits (
             matter_id TEXT, card_key TEXT, value REAL, note TEXT, edited_by TEXT, edited_at TEXT,
             clio_value REAL, PRIMARY KEY (matter_id, card_key));
+        CREATE TABLE IF NOT EXISTS card_reviews (
+            matter_id TEXT, card_key TEXT, status TEXT, value REAL, by TEXT, at TEXT,
+            PRIMARY KEY (matter_id, card_key));
         CREATE TABLE IF NOT EXISTS audit (at TEXT, action TEXT, item_id TEXT, detail TEXT);
     """)
     return con
@@ -118,6 +122,25 @@ def card_edits(matter_id) -> dict:
     with _db() as con:
         rows = con.execute("SELECT * FROM card_edits WHERE matter_id = ?", (str(matter_id),)).fetchall()
     return {r["card_key"]: dict(r) for r in rows}
+
+
+def card_reviews(matter_id) -> dict:
+    """{card key: {status, value, by, at}} for one case."""
+    with _db() as con:
+        rows = con.execute("SELECT * FROM card_reviews WHERE matter_id = ?", (str(matter_id),)).fetchall()
+    return {r["card_key"]: dict(r) for r in rows}
+
+
+def set_card_review(matter_id, card_key: str, status: str, value: float | None, by: str = "") -> None:
+    """Save a card's review status for the number it shows. Status changes also go to the audit log."""
+    with _db() as con:
+        old = con.execute("SELECT status FROM card_reviews WHERE matter_id = ? AND card_key = ?",
+                          (str(matter_id), card_key)).fetchone()
+        con.execute("INSERT OR REPLACE INTO card_reviews VALUES (?,?,?,?,?,?)",
+                    (str(matter_id), card_key, status, value, by, now()))
+        if not old or old["status"] != status:
+            log("card_review", f"{matter_id}:{card_key}",
+                {"status": status, "was": old["status"] if old else None, "value": value, "by": by}, con)
 
 
 # ---------- last opened ----------

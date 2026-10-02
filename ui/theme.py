@@ -3,6 +3,7 @@
 Navy + white + one gold accent. Serif only for headings. Large text for projectors.
 """
 import html
+import re
 import time
 
 import streamlit as st
@@ -57,7 +58,28 @@ h1 {{ font-size: 2.3rem !important; }} h2 {{ font-size: 1.8rem !important; }} h3
 /* cards */
 .lm-card {{ border: 1px solid {LINE}; border-radius: 12px; padding: 1rem 1.15rem; background: #fff; height: 100%;
     display: flex; flex-direction: column; gap: 0.35rem; }}
-.lm-card.warn {{ border: 2px solid {AMBER}; background: #FFFAEB; }}
+.lm-card.warn {{ border-left: 5px solid {AMBER}; }}
+.lm-card.needs_review {{ border: 2px solid {AMBER}; background: #FFFAEB; box-shadow: 0 0 0 4px #FEF0C7; }}
+.lm-rev {{ display: inline-block; width: fit-content; border-radius: 6px; padding: 0.15rem 0.55rem;
+    font-size: 0.8rem; font-weight: 700; }}
+.lm-rev.needs_review {{ background: {AMBER}; color: #fff; }}
+.lm-rev.approved {{ background: #ECFDF3; color: {GREEN}; border: 1px solid #ABEFC6; }}
+.lm-rev.corrected {{ background: #EFF8FF; color: #175CD3; border: 1px solid #B2DDFF; }}
+.lm-rev.not_required {{ background: {SOFT}; color: {MUTED}; font-weight: 600; }}
+.lm-lines div {{ margin: 0.1rem 0; }}
+.lm-lines b {{ color: {NAVY}; }}
+.lm-lines .lbl {{ display: block; font-size: 0.8rem; color: {MUTED}; font-weight: 600; margin-top: 0.25rem; }}
+.lm-gtitle {{ font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: {MUTED};
+    font-weight: 700; margin-top: 0.45rem; }}
+.lm-row {{ display: flex; justify-content: space-between; align-items: baseline; gap: 0.6rem;
+    padding: 0.25rem 0; border-bottom: 1px dotted {LINE}; }}
+.lm-row .n {{ font-weight: 600; color: {INK}; }}
+.lm-row .s {{ display: block; font-size: 0.82rem; color: {MUTED}; font-weight: 400; }}
+.lm-row .a {{ font-weight: 700; color: {NAVY}; white-space: nowrap; }}
+.lm-group.muted .n, .lm-group.muted .a {{ color: {MUTED}; }}
+.lm-summary {{ border-radius: 10px; padding: 0.6rem 0.9rem; margin: 0.2rem 0 0.8rem; font-weight: 600; }}
+.lm-summary.todo {{ background: #FFFAEB; border: 1px solid #FEC84B; color: {AMBER}; }}
+.lm-summary.done {{ background: #ECFDF3; border: 1px solid #ABEFC6; color: {GREEN}; }}
 .lm-label {{ text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.8rem; font-weight: 700; color: {MUTED}; }}
 .lm-value {{ font-size: 2rem; font-weight: 700; color: {NAVY}; line-height: 1.15; }}
 .lm-sub {{ color: {INK}; font-size: 0.98rem; overflow-wrap: anywhere; white-space: normal; }}
@@ -145,20 +167,80 @@ def pill(level: str, text: str) -> str:
     return f'<span class="lm-pill {level}">{esc(text)}</span>'
 
 
-def card(label: str, value: str, sub: str = "", source: str = "", sure: tuple[str, str] = ("exact", "From Clio"),
-         why: str = "", warn: bool = False, link: dict | None = None) -> str:
-    """One number with where it came from and how sure we are. `why` = short reason when unsure.
-    link = {"url", "place", "hint"}: opens the source in Clio; hint says what to look for there."""
-    open_ = ""
+MONEY_RE = re.compile(r"\$\s?[\d,]+(?:\.\d{1,2})?")
+LABEL_RE = re.compile(r"^([A-Za-z][^:$\d]{0,30}):\s+")
+
+
+def bold_money(text: str) -> str:
+    """Escape, then make dollar amounts bold."""
+    return MONEY_RE.sub(lambda m: f"<b>{m.group(0)}</b>", esc(text))
+
+
+def rich(text: str) -> str:
+    """One line per line of the Clio text; short labels ("Client UM/UIM") muted, dollar amounts in bold."""
+    out = []
+    for line in str(text or "").split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        m = LABEL_RE.match(line)
+        out.append(f'<div><span class="lbl">{esc(m.group(1))}</span> {bold_money(line[m.end():])}</div>' if m
+                   else f"<div>{bold_money(line)}</div>")
+    return f'<div class="lm-sub lm-lines">{"".join(out)}</div>' if out else ""
+
+
+def groups_html(groups: list[dict]) -> str:
+    """Rows like "New York State Medicaid ........ $22,180", grouped ("Counted as liens", "Not counted")."""
+    html_ = ""
+    for g in groups:
+        rows = "".join(f'<div class="lm-row"><span class="n">{esc(r["name"])}<span class="s">{esc(r["note"])}</span></span>'
+                       f'<span class="a">{esc(r["amount"])}</span></div>' for r in g["rows"])
+        html_ += (f'<div class="lm-group{" muted" if g.get("muted") else ""}">'
+                  f'<div class="lm-gtitle">{esc(g["title"])}</div>{rows}</div>')
+    return html_
+
+
+def review_badge(rv: dict) -> str:
+    from app.store import nice_time
+    st_, text = rv["status"], rv["label"]
+    if st_ == "needs_review":
+        text = "⚠ " + text.upper()
+    elif st_ in ("approved", "corrected"):
+        text = ("✓ " if st_ == "approved" else "✎ ") + text + (f" by {rv['by']}" if rv.get("by") else "") \
+               + (f" · {nice_time(rv['at'])}" if rv.get("at") else "")
+    return f'<span class="lm-rev {st_}">{esc(text)}</span>'
+
+
+def card(k: dict) -> str:
+    """One money card: label, review status, number, what's behind it (one item per line), and a warning if any.
+    Where it comes from is shown separately (source_html), behind a click."""
+    rv = k.get("review") or {"status": "not_required", "label": ""}
+    cls = "needs_review" if rv["status"] == "needs_review" else ("warn" if k.get("warn") else "")
+    return (f'<div class="lm-card {cls}"><div class="lm-label">{esc(k["label"])}</div>'
+            + (review_badge(rv) if rv.get("label") else "")
+            + f'<div class="lm-value">{esc(k["value"])}</div>'
+            + (groups_html(k["groups"]) if k.get("groups") else "")
+            + rich(k.get("sub", ""))
+            + (f'<div class="lm-why">⚠ {bold_money(k["why"])}</div>' if k.get("why") else "")
+            + '</div>')
+
+
+def source_html(k: dict) -> str:
+    """How sure we are, where the number comes from, and a link to the exact Clio tab."""
+    link, open_ = k.get("link"), ""
     if link and link.get("url"):
         open_ = (f'<br><a href="{esc(link["url"])}" target="_blank">Open {esc(link.get("place") or "")} in Clio ↗</a>'
                  + (f' <span class="lm-hint">then look for {esc(link["hint"])}</span>' if link.get("hint") else ""))
-    return (f'<div class="lm-card{" warn" if warn else ""}"><div class="lm-label">{esc(label)}</div>'
-            f'<div class="lm-value">{esc(value)}</div>'
-            + (f'<div class="lm-sub">{esc(sub)}</div>' if sub else "")
-            + (f'<div class="lm-why">⚠ {esc(why)}</div>' if why else "")
-            + f'<div class="lm-src">{pill(*sure)}<b>Source:</b> {esc(source)}{open_}</div></div>')
+    return f'<div class="lm-src">{pill(*k["sure"])}<b>Source:</b> {esc(k["source"])}{open_}</div>'
 
+
+def review_summary(cards: list[dict]) -> str:
+    """One line above the cards: which numbers still need a person to look at them."""
+    need = [k["label"] for k in cards if (k.get("review") or {}).get("status") == "needs_review"]
+    if not need:
+        return '<div class="lm-summary done">✓ Every number is checked or reviewed.</div>'
+    return (f'<div class="lm-summary todo">⚠ {len(need)} of {len(cards)} numbers need your review: '
+            f'{esc(", ".join(need))}. Open “Where this comes from” under each one.</div>')
 
 def empty_state(title: str, text: str):
     st.markdown(f'<div class="lm-empty"><h1>{esc(title)}</h1><div class="lm-rule"></div><p>{esc(text)}</p></div>',

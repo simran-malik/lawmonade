@@ -121,19 +121,83 @@ def case_header(s: dict):
 
 def money_row(s: dict):
     from app import store
-    from app.kpis import apply_edits, kpis
-    st.markdown("### What it's worth, and what's behind it")
+    from app.kpis import apply_edits, apply_reviews, kpis, same
     mid = s["matter"]["id"]
     ks = apply_edits(kpis(s, lien_breakdown(s)), store.card_edits(mid))
+    saved = store.card_reviews(mid)
+    ks = apply_reviews(ks, saved)
+    for k in ks:      # keep each card's review status in our DB (only writes when something changed)
+        r, rv = saved.get(k["key"]), k["review"]
+        if not r or r["status"] != rv["status"] or not same(r["value"], k["amount"]):
+            store.set_card_review(mid, k["key"], rv["status"], k["amount"], rv.get("by", ""))
+
+    h, who = st.columns([3, 1])
+    with h:
+        st.markdown("### What it's worth, and what's behind it")
+    with who:
+        st.text_input("Reviewing as", key="who", placeholder="Your name", help="Saved with each approval or fix")
+    st.markdown(theme.review_summary(ks), unsafe_allow_html=True)
     for col, k in zip(st.columns(len(ks)), ks):
         with col:
-            st.markdown(theme.card(k["label"], k["value"], k["sub"], k["source"], k["sure"], k["why"], k["warn"],
-                                   k.get("link")), unsafe_allow_html=True)
-            if k.get("items"):
-                with st.expander("See the items"):
-                    for it in k["items"]:
-                        st.markdown(f"- {it['text']}" + (f" · [Open in Clio ↗]({it['url']})" if it.get("url") else ""))
-            edit_card(mid, k)
+            st.markdown(theme.card(k), unsafe_allow_html=True)
+            needs = k["review"]["status"] == "needs_review"
+            with st.expander("Where this comes from" + (" · review" if needs else "")):
+                st.markdown(theme.source_html(k), unsafe_allow_html=True)
+                for it in k.get("items") or []:
+                    st.markdown(f"- {it['text']}" + (f" · [Open in Clio ↗]({it['url']})" if it.get("url") else ""))
+                review_buttons(mid, k)
+
+
+def review_buttons(mid, k: dict):
+    """Looks good / Something wrong? (and undo). Saved in Law-monade's own database; Clio is never changed."""
+    from app import store
+    key, status = k["key"], k["review"]["status"]
+    who = ss.get("who", "").strip()
+    if status == "needs_review" and not k.get("edited"):
+        a, b = st.columns(2)
+        if a.button("✓ Looks good", key=f"ok_{key}", type="primary", use_container_width=True):
+            store.set_card_review(mid, key, "approved", k["amount"], who)
+            st.rerun()
+        if b.button("Something wrong?", key=f"bad_{key}", use_container_width=True):
+            ss[f"fix_{key}"] = True
+    elif status == "approved":
+        a, b = st.columns(2)
+        if a.button("Undo approval", key=f"unok_{key}", use_container_width=True):
+            store.set_card_review(mid, key, "needs_review", k["amount"], who)
+            st.rerun()
+        if b.button("Something wrong?", key=f"bad_{key}", use_container_width=True):
+            ss[f"fix_{key}"] = True
+    elif k.get("edited"):
+        a, b = st.columns(2)
+        if a.button("Change the fix", key=f"refix_{key}", use_container_width=True):
+            ss[f"fix_{key}"] = True
+        if b.button("Undo: use the Clio number", key=f"undo_{key}", use_container_width=True):
+            store.clear_card_edit(mid, key, who)
+            st.rerun()
+    elif st.button("Something wrong?", key=f"bad_{key}", use_container_width=True):
+        ss[f"fix_{key}"] = True
+    if ss.get(f"fix_{key}"):
+        fix_form(mid, k, who)
+
+
+def fix_form(mid, k: dict, who: str):
+    """Correct the number. Clio stays as it is (read-only); the card shows both."""
+    key, edited = k["key"], k.get("edited")
+    with st.form(f"edit_{key}"):
+        st.markdown(f"Clio says **{k.get('clio_value_text', k['value'])}**. Your fix is saved in Law-monade only.")
+        value = st.number_input("Correct amount ($)", min_value=0.0, step=100.0, format="%.2f",
+                                value=float(k["amount"] or 0))
+        note = st.text_input("What's wrong?", value=(edited or {}).get("note", ""),
+                             placeholder="e.g. Adjuster confirmed $50,000 on the phone")
+        a, b = st.columns(2)
+        save = a.form_submit_button("Save fix", type="primary", use_container_width=True)
+        cancel = b.form_submit_button("Cancel", use_container_width=True)
+    if save or cancel:
+        if save:
+            from app import store
+            store.save_card_edit(mid, key, value, note.strip(), who, k.get("clio_amount", k["amount"]))
+        ss[f"fix_{key}"] = False
+        st.rerun()
 
 
 def lien_breakdown(s: dict) -> dict:
@@ -144,36 +208,6 @@ def lien_breakdown(s: dict) -> dict:
         with st.spinner("Sorting the lien field (AI, then checked against Clio)…"):
             ss[key] = liens.analyze(s)
     return ss[key]
-
-
-def edit_card(mid, k: dict):
-    """Let a person correct a number. Saved in Law-monade's own database; Clio is never changed (read-only)."""
-    key, edited = k["key"], k.get("edited")
-    clio_text = k.get("clio_value_text", k["value"])
-    import inspect
-    pkw = {"key": f"pop_{key}"} if "key" in inspect.signature(st.popover).parameters else {}
-    with st.popover("Change this number" if not edited else "Edit or undo the change", use_container_width=True, **pkw):
-        st.markdown(f"**{k['label']}**  \nClio says: **{clio_text}**")
-        st.caption("Your change is saved in Law-monade only. Clio is not changed.")
-        with st.form(f"edit_{key}", border=False):
-            value = st.number_input("Correct amount ($)", min_value=0.0, step=100.0, format="%.2f",
-                                    value=float(k["amount"] or 0))
-            note = st.text_input("Why? (optional)", value=(edited or {}).get("note", ""),
-                                 placeholder="e.g. Adjuster confirmed $50,000 on the phone")
-            who = st.text_input("Your name (optional)", value=ss.get("who", ""))
-            if st.form_submit_button("Save", type="primary", use_container_width=True):
-                ss.who = who
-                store_edit(mid, k, value, note, who)
-                st.rerun()
-        if edited and st.button("Undo: use the Clio number", key=f"undo_{key}", use_container_width=True):
-            from app import store
-            store.clear_card_edit(mid, key, ss.get("who", ""))
-            st.rerun()
-
-
-def store_edit(mid, k: dict, value: float, note: str, who: str):
-    from app import store
-    store.save_card_edit(mid, k["key"], value, note.strip(), who.strip(), k.get("clio_amount", k["amount"]))
 
 
 def case_screen(s: dict):

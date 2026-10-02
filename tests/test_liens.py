@@ -24,8 +24,10 @@ def test_only_real_liens_are_added_up():
     a = analyze(SNAP, fake(FIXTURE))
     assert a["status"] == "ok" and a["total"] == 22180 and not a["unchecked"]
     card = {k["key"]: k for k in kpis(SNAP, a)}["lien"]
-    assert card["value"] == "$22,180" and card["sure"][0] == "ai" and "Not counted" in card["sub"]
-    assert "Progressive" in card["sub"] and "1 other Clio item" in card["sub"]
+    assert card["value"] == "$22,180" and card["sure"][0] == "ai" and "1 other Clio item" in card["sub"]
+    counted, not_counted = card["groups"]
+    assert [r["name"] for r in counted["rows"]] == ["New York State Medicaid"]
+    assert not_counted["title"] == "Not counted" and not_counted["rows"][0]["amount"] == "$50,000"
     assert any("Note · Jul 23, 2025" in i["text"] for i in card["items"])
 
 
