@@ -121,7 +121,8 @@ def render(s: dict):
     if send and "@" not in (to or ""):
         theme.error_box("There's no valid email address to send to.", "Type the provider's email address, then try again.")
     elif send or only:
-        token = store.create_share(mid, prov["id"], prov["name"], chosen, edited_text=json.dumps(p), created_by="attorney")
+        who = ss.get("who", "").strip() or "attorney"
+        token = store.create_share(mid, prov["id"], prov["name"], chosen, edited_text=json.dumps(p), created_by=who)
         sh = store.get_share(token)
         link, expires = f"{settings.public_url}/?share={token}", nice_date(sh["expires_at"])
         ss["last_result"] = {"token": token, "provider": prov["id"], "link": link, "expires": expires, "sent": None, "error": None}
@@ -129,10 +130,11 @@ def render(s: dict):
             try:
                 r = emailer.send(to, subject, provider_view.link_email_text(message, link, expires),
                                  provider_view.link_email_html(message, link, expires, settings.firm_name))
-                store.log("email_sent", token, {"to": r["to"], "intended": r["intended"], "via": r["via"], "subject": subject})
+                store.log("email_sent", store.share_ref(token),
+                          {"to": r["to"], "intended": r["intended"], "via": r["via"], "subject": subject}, actor=who)
                 ss["last_result"]["sent"] = r
             except emailer.EmailError as e:
-                store.log("email_failed", token, {"to": to, "error": e.message})
+                store.log("email_failed", store.share_ref(token), {"to": to, "error": e.message}, actor=who)
                 ss["last_result"]["error"] = (e.message, e.fix)
 
     res = ss.get("last_result")
@@ -161,5 +163,5 @@ def render(s: dict):
             c1.markdown(f'**{esc(r["provider_name"])}** · created {store.nice_time(r["created_at"])}  \n{mailed}')
             c2.markdown(f'{seen}  \n{state}')
             if not r["revoked"] and c3.button("Turn off", key="rv" + r["token"], help="The link stops working right away"):
-                store.revoke_share(r["token"])
+                store.revoke_share(r["token"], ss.get("who", "").strip())
                 st.rerun()
