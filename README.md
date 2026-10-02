@@ -37,6 +37,7 @@ More commands and flags: `bash run.sh help`. First-time setup steps: [`SETUP.md`
 | `tests/` | Tests, no keys needed: `bash run.sh test` |
 | `REQUIREMENTS.md` | Problem, pain points, money math, MVP, Clio API setup |
 | `SETUP.md` / `SETUP_accounts.md` | Setup steps / accounts and keys reference |
+| `DEMO_LOG.md` | Demo script, how the secure link works, limitations, future scope, decision log |
 
 ## Stack
 Python 3.11, Streamlit, FastAPI, Claude (Anthropic) or Gemini, SQLite + JSON files, Clio Manage API v4 (read-only).

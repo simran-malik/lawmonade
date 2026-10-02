@@ -25,3 +25,11 @@ def test_last_opened(tmp_path, monkeypatch):
     assert store.last_opened("u1", "m1") is None
     store.mark_opened("u1", "m1")
     assert store.last_opened("u1", "m1") is not None
+
+
+def test_email_log(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "db_path", tmp_path / "t.db")
+    token = store.create_share("m1", "c9", "Test Clinic", ["status"], days=1)
+    assert store.emails_for(token) == []
+    store.log("email_sent", token, {"to": "a@b.com", "intended": "a@b.com", "via": "gmail", "subject": "x"})
+    assert store.emails_for(token)[0]["to"] == "a@b.com"

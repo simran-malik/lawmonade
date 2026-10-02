@@ -101,3 +101,21 @@ def last_opened(user_id: str, matter_id: str) -> str | None:
 def mark_opened(user_id: str, matter_id: str) -> None:
     with _db() as con:
         con.execute("INSERT OR REPLACE INTO last_opened VALUES (?, ?, ?)", (str(user_id), str(matter_id), now()))
+
+
+def emails_for(token: str) -> list[dict]:
+    """Emails sent with this link, oldest first (from the audit log)."""
+    with _db() as con:
+        rows = con.execute("SELECT at, detail FROM audit WHERE action = 'email_sent' AND item_id = ? ORDER BY at",
+                           (token,)).fetchall()
+    return [{"at": r["at"], **json.loads(r["detail"])} for r in rows]
+
+
+def nice_time(iso: str | None) -> str:
+    """'2026-10-02T18:05:00+00:00' -> 'Oct 2, 11:05 AM' in local time."""
+    if not iso:
+        return ""
+    try:
+        return datetime.fromisoformat(iso).astimezone().strftime("%b %-d, %-I:%M %p")
+    except ValueError:
+        return iso

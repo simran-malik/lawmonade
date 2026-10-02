@@ -77,8 +77,8 @@ def build(snap: dict, provider: dict) -> dict:
 
 def default_message(provider_name: str, client: str, firm: str) -> str:
     return (f"Hello {provider_name},\n\n"
-            f"Here is an update on our client {client or 'your patient'}'s case: where it stands and what we need "
-            f"from your office right now.\n\n"
+            f"We've prepared a secure update on our client {client or 'your patient'}'s case. Open the link below to "
+            f"see where the case stands and what we need from your office right now.\n\n"
             f"Thank you for your care of our client. Please reply to this email with any questions.\n\n{firm}")
 
 

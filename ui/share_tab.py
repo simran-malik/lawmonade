@@ -76,74 +76,84 @@ def render(s: dict):
     p = share.payload(d, chosen, need_ids, record_ids, billed, reduction, message, firm=settings.firm_name)
 
     # ---- 3. preview + approve
-    theme.step_head(3, "Check the preview, then approve")
-    st.markdown(f'<span class="lm-preview-tag">PREVIEW · exactly what {esc(prov["name"])} will see</span>'
+    theme.step_head(3, "Check the preview")
+    st.markdown(f'<span class="lm-preview-tag">PREVIEW · exactly what {esc(prov["name"])} will see after opening the link</span>'
                 f'<div class="lm-preview-frame">{provider_view.html(p)}</div>', unsafe_allow_html=True)
     ok = st.checkbox("I checked this preview. It shares only what this provider should see.", key=k + "ok")
-    if st.button("Approve and create secure link", type="primary", disabled=not (ok and chosen), use_container_width=True):
-        token = store.create_share(mid, prov["id"], prov["name"], chosen, edited_text=json.dumps(p),
-                                   created_by="attorney")
-        ss["last_link"] = token
     if not chosen:
         st.caption("Tick at least one section to share.")
 
-    sh = store.get_share(ss["last_link"]) if ss.get("last_link") else None
-    if sh and sh["provider_id"] == str(prov["id"]):
-        link = f'{settings.public_url}/?share={ss["last_link"]}'
-        expires = nice_date(sh["expires_at"])
-        st.success(f'Secure link ready for {sh["provider_name"]}. It works until {expires}.')
-        st.code(link, language=None)
-        send_by_email(prov, json.loads(sh["edited_text"]), link, expires, ss["last_link"], s)
-
-    # ---- already shared
-    rows = store.shares_for_matter(mid)
-    if rows:
-        theme.step_head(4, "Already shared on this case")
-        for r in rows:
-            c1, c2, c3 = st.columns([4, 3, 1.3])
-            state = "turned off" if r["revoked"] else f'works until {nice_date(r["expires_at"])}'
-            seen = f'opened {r["views"]} time(s), last {nice_date(r["last_view"])}' if r["views"] else "not opened yet"
-            c1.markdown(f'**{esc(r["provider_name"])}** · shared {nice_date(r["created_at"])}')
-            c2.markdown(f'{seen} · {state}')
-            if not r["revoked"] and c3.button("Turn off", key="rv" + r["token"], help="The link stops working right away"):
-                store.revoke_share(r["token"])
-                st.rerun()
-
-
-def send_by_email(prov: dict, p: dict, link: str, expires: str, token: str, s: dict):
-    """Step 4: email the approved update. The person presses Send; nothing goes out on its own."""
+    # ---- 4. approve + email the LINK (the email never contains case details)
     from app import emailer
-    ss = st.session_state
-    theme.step_head(4, "Send it by email")
-    clio_email = prov.get("email", "")
-    where = "Clio" if s["source"] == "clio" else "the sample file"
+    theme.step_head(4, "Approve and send the secure link")
     c1, c2 = st.columns([3, 2])
     with c1:
-        to = st.text_input("To", value=clio_email, key="em_to_" + token,
+        to = st.text_input("Send to", value=prov.get("email", ""), key=k + "to",
                            placeholder="No email in Clio for this provider: type one")
-        st.caption(f"Email from {where}." if clio_email else f"{where.capitalize()} has no email for this provider.")
-        subject = st.text_input("Subject", key="em_sub_" + token,
-                                value=f"Case update: {s['matter'].get('client') or s['matter'].get('description')}")
+        where = "Clio" if s["source"] == "clio" else "the sample file"
+        st.caption(f"Email address from {where}." if prov.get("email") else f"{where.capitalize()} has no email for this provider.")
+        subject = st.text_input("Subject", key=k + "subj",
+                                value=f"Secure case update from {settings.firm_name}: {s['matter'].get('client', '')}".rstrip(": "))
     with c2:
         st.markdown(f'<div class="lm-label">Sent from</div><div class="lm-never">{esc(emailer.sender())}</div>',
                     unsafe_allow_html=True)
+        st.caption("The email holds only your message and the secure link. Case details stay behind the link.")
         if settings.email_demo_redirect:
-            st.markdown(f'<span class="lm-pill check">DEMO</span> All emails go to <b>{esc(settings.email_demo_redirect)}</b> '
+            st.markdown(f'<span class="lm-pill check">DEMO</span> Emails go to <b>{esc(settings.email_demo_redirect)}</b> '
                         f'instead of the provider.', unsafe_allow_html=True)
         if emailer.mode() == "none":
             st.markdown('<span class="lm-pill check">SETUP NEEDED</span> Run <code>bash run.sh gmail</code> once.',
                         unsafe_allow_html=True)
 
-    sent_key = "em_sent_" + token
-    if st.button("Send email", type="primary", use_container_width=True, key="em_btn_" + token,
-                 disabled=bool(ss.get(sent_key))):
-        try:
-            r = emailer.send(to, subject, provider_view.email_text(p, link, expires), provider_view.email_html(p, link, expires))
-            store.log("email_sent", token, {"to": r["to"], "intended": r["intended"], "via": r["via"], "subject": subject})
-            ss[sent_key] = r
-        except emailer.EmailError as e:
-            theme.error_box(e.message, e.fix)
-    if ss.get(sent_key):
-        r = ss[sent_key]
-        note = f" (demo: meant for {r['intended']})" if r["to"] != r["intended"] else ""
-        st.success(f"Email sent to {r['to']}{note}.")
+    ready = ok and bool(chosen)
+    send = st.button("Approve, create secure link and email it", type="primary", use_container_width=True,
+                     disabled=not ready, key=k + "send")
+    only = st.button("Only create the link (I'll send it myself)", disabled=not ready, key=k + "only")
+    if not ok:
+        st.caption("Tick \"I checked this preview\" above to continue.")
+
+    if send and "@" not in (to or ""):
+        theme.error_box("There's no valid email address to send to.", "Type the provider's email address, then try again.")
+    elif send or only:
+        token = store.create_share(mid, prov["id"], prov["name"], chosen, edited_text=json.dumps(p), created_by="attorney")
+        sh = store.get_share(token)
+        link, expires = f"{settings.public_url}/?share={token}", nice_date(sh["expires_at"])
+        ss["last_result"] = {"token": token, "provider": prov["id"], "link": link, "expires": expires, "sent": None, "error": None}
+        if send:
+            try:
+                r = emailer.send(to, subject, provider_view.link_email_text(message, link, expires),
+                                 provider_view.link_email_html(message, link, expires, settings.firm_name))
+                store.log("email_sent", token, {"to": r["to"], "intended": r["intended"], "via": r["via"], "subject": subject})
+                ss["last_result"]["sent"] = r
+            except emailer.EmailError as e:
+                store.log("email_failed", token, {"to": to, "error": e.message})
+                ss["last_result"]["error"] = (e.message, e.fix)
+
+    res = ss.get("last_result")
+    if res and res["provider"] == prov["id"]:
+        if res["sent"]:
+            r = res["sent"]
+            note = f" (demo: meant for {r['intended']})" if r["to"] != r["intended"] else ""
+            st.success(f"Secure link emailed to {r['to']}{note}. It works until {res['expires']}.")
+        elif res["error"]:
+            theme.error_box("The link was created, but the email was not sent. " + res["error"][0],
+                            res["error"][1] + " You can also copy the link below and send it yourself.")
+        else:
+            st.success(f"Secure link created. It works until {res['expires']}. Copy it and send it to the provider:")
+        st.code(res["link"], language=None)
+
+    # ---- 5. already shared
+    rows = store.shares_for_matter(mid)
+    if rows:
+        theme.step_head(5, "Already shared on this case")
+        for r in rows:
+            c1, c2, c3 = st.columns([4, 4, 1.3])
+            state = "turned off" if r["revoked"] else f'works until {nice_date(r["expires_at"])}'
+            seen = (f'opened {r["views"]} time(s), last {store.nice_time(r["last_view"])}' if r["views"] else "not opened yet")
+            mails = store.emails_for(r["token"])
+            mailed = f'emailed to {mails[-1]["to"]} {store.nice_time(mails[-1]["at"])}' if mails else "not emailed"
+            c1.markdown(f'**{esc(r["provider_name"])}** · created {store.nice_time(r["created_at"])}  \n{mailed}')
+            c2.markdown(f'{seen}  \n{state}')
+            if not r["revoked"] and c3.button("Turn off", key="rv" + r["token"], help="The link stops working right away"):
+                store.revoke_share(r["token"])
+                st.rerun()
