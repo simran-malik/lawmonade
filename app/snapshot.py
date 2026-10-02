@@ -62,6 +62,24 @@ def load_saved(matter_id) -> dict | None:
     return json.loads(p.read_text()) if p.exists() else None
 
 
+def find_saved(query: str) -> dict | None:
+    """Newest snapshot saved from live Clio whose client, description or number matches `query`.
+    Used when Clio can't be reached, so the team still sees the case (with its "as of" time)."""
+    q = (query or "").strip().lower()
+    best = None
+    for p in settings.snapshot_dir.glob("*/snapshot.json"):
+        try:
+            snap = json.loads(p.read_text())
+        except (OSError, ValueError):
+            continue
+        m = snap.get("matter") or {}
+        text = " ".join(str(m.get(k) or "") for k in ("client", "description", "number")).lower()
+        if snap.get("source") == "clio" and q and q in text:
+            if best is None or snap.get("fetched_at", "") > best.get("fetched_at", ""):
+                best = snap
+    return best
+
+
 def counts(snap: dict) -> dict:
     return {k: len(snap.get(k, [])) for k in LISTS} | {"contacts": len(snap.get("contacts", []))}
 

@@ -32,12 +32,26 @@ def open_from_clio(query: str):
         theme.run_steps(steps, title=f'Opening "{query}" from Clio')
     except ClioError as e:
         ss.error = (e.message, e.fix)
+        use_saved_copy(query)
         return
     except Exception as e:  # unexpected: still say what to do
+        log.get("ui").exception("[clio.load] unexpected error")
         ss.error = ("Something went wrong while reading the case.", f"Try again, or use the sample case. Details: {e}")
+        use_saved_copy(query)
         return
     snapshot.save(state["snapshot"])
     ss.snap = state["snapshot"]
+
+
+def use_saved_copy(query: str):
+    """Clio failed: if nothing is open yet, show the last copy saved from Clio and say how old it is."""
+    if ss.snap is not None:
+        return
+    saved = snapshot.find_saved(query)
+    if saved:
+        ss.snap = saved
+        msg, fix = ss.error
+        ss.error = (f"{msg} You're seeing the copy saved {ago(saved.get('fetched_at')) or 'earlier'}.", fix)
 
 
 def open_sample():
